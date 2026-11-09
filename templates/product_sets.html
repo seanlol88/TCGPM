@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Product Sets - TCG Preorder Manager{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">Product Sets</h1>
+
+{% if error %}
+<div class="flash flash-error">{{ error }}</div>
+{% endif %}
+
+<div class="card">
+    <h2>Add Product Set</h2>
+    <form method="post" action="/product-sets">
+        <div style="display: grid; grid-template-columns: 2fr 1.5fr auto; gap: 0.75rem; align-items: end;">
+            <div>
+                <label for="name">Product subcategory</label>
+                <input type="text" id="name" name="name" required placeholder="e.g. Starter Deck, Booster Box">
+            </div>
+            <div>
+                <label for="category_id">Parent Category</label>
+                <select id="category_id" name="category_id">
+                    <option value="">-- No Category --</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-success">Add</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Existing Product Sets</h2>
+    {% if product_sets %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Products</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product_set in product_sets %}
+            <tr>
+                <td>{{ product_set.id }}</td>
+                <td>
+                    <form class="inline-form" method="post" action="/product-sets/{{ product_set.id }}/edit">
+                        <input type="text" name="name" value="{{ product_set.name }}" style="width: 180px;">
+                        <select name="category_id" style="width: 130px;">
+                            <option value="">-- None --</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}" {% if product_set.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                    </form>
+                </td>
+                <td>{{ product_set.category.name if product_set.category else '-' }}</td>
+                <td>{{ product_set.products|length }}</td>
+                <td>
+                    <form method="post" action="/product-sets/{{ product_set.id }}/delete" style="display: inline;" onsubmit="return confirm('Delete this product set? Products will no longer have a product set assigned.');">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted);">No product sets yet. Add your first product set above (e.g., "Starter Deck", "Booster Box", "Sleeves").</p>
+    {% endif %}
+</div>
+{% endblock %}

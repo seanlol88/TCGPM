@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}subcategories - {{ store_settings.store_name if store_settings and store_settings.store_name else 'TCG Preorder Manager' }}{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">subcategories</h1>
+
+{% if error %}
+<div class="flash flash-error">{{ error }}</div>
+{% endif %}
+
+<div class="card">
+    <h2>Add Set Name</h2>
+    <form method="post" action="/subcategories">
+        <div style="display: grid; grid-template-columns: 2fr 1.5fr 1fr auto; gap: 0.75rem; align-items: end;">
+            <div>
+                <label for="name">subcategory Name</label>
+                <input type="text" id="name" name="name" required placeholder="e.g. Booster Box, Singles, Sleeves">
+            </div>
+            <div>
+                <label for="category_id">Parent Category</label>
+                <select id="category_id" name="category_id">
+                    <option value="">-- No Category --</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="staff_name">Staff Name *</label>
+                <input type="text" id="staff_name" name="staff_name" required placeholder="Your name">
+            </div>
+            <button type="submit" class="btn btn-success">Add</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Existing subcategories</h2>
+    {% if subcategories %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Products</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for subcategory in subcategories %}
+            <tr>
+                <td>{{ subcategory.id }}</td>
+                <td>
+                    <form class="inline-form" method="post" action="/subcategories/{{ subcategory.id }}/edit">
+                        <input type="text" name="name" value="{{ subcategory.name }}" style="width: 180px;">
+                        <select name="category_id" style="width: 130px;">
+                            <option value="">-- None --</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}" {% if subcategory.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="staff_name" id="edit_sub_staff_{{ subcategory.id }}">
+                        <button type="submit" class="btn btn-primary btn-sm" onclick="return confirmInlineStaff(this, 'edit_sub_staff_{{ subcategory.id }}')">Save</button>
+                    </form>
+                </td>
+                <td>{{ subcategory.category.name if subcategory.category else '-' }}</td>
+                <td>{{ subcategory.products|length }}</td>
+                <td>
+                    <form method="post" action="/subcategories/{{ subcategory.id }}/delete" style="display: inline;" onsubmit="return confirmInlineStaff(this, 'del_sub_staff_{{ subcategory.id }}')">
+                        <input type="hidden" name="staff_name" id="del_sub_staff_{{ subcategory.id }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted);">No subcategories yet. Add your first subcategory above (e.g., "Booster Box", "Singles", "Sleeves").</p>
+    {% endif %}
+</div>
+
+<script>
+// Staff name prompt for inline forms
+function confirmInlineStaff(button, staffInputId) {
+    var staffInput = document.getElementById(staffInputId);
+    if (!staffInput.value.trim()) {
+        var staffName = prompt('Please enter your staff name:');
+        if (!staffName || !staffName.trim()) {
+            return false;
+        }
+        staffInput.value = staffName;
+    }
+    return true;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,706 @@
+{% extends "base.html" %}
+
+{% block title %}Backups - {{ store_settings.store_name or "TCG Preorder Manager" }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📦 Database Backups</h1>
+    <div class="button-group">
+        <button type="button" class="btn btn-primary" onclick="openBackupModal()">+ Run Backup Now</button>
+        <button type="button" class="btn btn-secondary" onclick="openImportModal()">📥 Import Backup</button>
+        <a href="/" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</div>
+
+<!-- Backup Configuration -->
+<div class="card">
+    <h2>Backup Configuration</h2>
+    <form method="POST" action="/backups/update-settings">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="backup_enabled">Enable Automatic Backups</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="backup_enabled" name="backup_enabled" {% if settings.backup_enabled %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">{% if settings.backup_enabled %}Enabled{% else %}Disabled{% endif %}</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="backup_storage">Storage Location</label>
+                <select id="backup_storage" name="backup_storage" onchange="toggleGoogleDriveOptions()">
+                    <option value="local" {% if settings.backup_storage != 'google_drive' %}selected{% endif %}>Local Storage</option>
+                    <option value="google_drive" {% if settings.backup_storage == 'google_drive' %}selected{% endif %}>Google Drive</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="backup_schedule">Schedule</label>
+                <select id="backup_schedule" name="backup_schedule" onchange="updateScheduleOptions()">
+                    <option value="hourly" {% if settings.backup_schedule == 'hourly' %}selected{% endif %}>Every Hour</option>
+                    <option value="daily" {% if settings.backup_schedule == 'daily' %}selected{% endif %}>Daily</option>
+                    <option value="weekly" {% if settings.backup_schedule == 'weekly' %}selected{% endif %}>Weekly</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="backup_time_group">
+                <label for="backup_time">Time of Day</label>
+                <input type="time" id="backup_time" name="backup_time" value="{{ settings.backup_time or '02:00' }}">
+            </div>
+
+            <div class="form-group" id="backup_weekday_group" style="display: {% if settings.backup_schedule == 'weekly' %}block{% else %}none{% endif %};">
+                <label for="backup_weekday">Day of Week</label>
+                <select id="backup_weekday" name="backup_weekday">
+                    <option value="monday" {% if settings.backup_weekday == 'monday' %}selected{% endif %}>Monday</option>
+                    <option value="tuesday" {% if settings.backup_weekday == 'tuesday' %}selected{% endif %}>Tuesday</option>
+                    <option value="wednesday" {% if settings.backup_weekday == 'wednesday' %}selected{% endif %}>Wednesday</option>
+                    <option value="thursday" {% if settings.backup_weekday == 'thursday' %}selected{% endif %}>Thursday</option>
+                    <option value="friday" {% if settings.backup_weekday == 'friday' %}selected{% endif %}>Friday</option>
+                    <option value="saturday" {% if settings.backup_weekday == 'saturday' %}selected{% endif %}>Saturday</option>
+                    <option value="sunday" {% if settings.backup_weekday == 'sunday' %}selected{% endif %}>Sunday</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="google_drive_options" style="display: {% if settings.backup_storage == 'google_drive' %}block{% else %}none{% endif %}; padding: 1rem; background: var(--th-bg); border-radius: 4px; margin-bottom: 1rem;">
+            <h3 style="margin-top: 0;">Google Drive Settings</h3>
+            
+            {% if status.google_connected %}
+            <div style="padding: 0.75rem; background: #d1fae5; border-radius: 4px; margin-bottom: 1rem;">
+                ✅ Google Drive is connected
+                <a href="#" onclick="if(confirm('Disconnect Google Drive? This will not delete existing backups.')) document.getElementById('disconnect-drive-form').submit(); return false;" class="btn btn-sm btn-danger" style="margin-left: 1rem;">Disconnect</a>
+            </div>
+            {% else %}
+            <div style="padding: 0.75rem; background: #fef3c7; border-radius: 4px; margin-bottom: 1rem;">
+                ⚠️ Google Drive is not connected.
+                <button type="button" class="btn btn-sm btn-primary" style="margin-left: 0.5rem;" onclick="openConnectModal()">Connect Google Drive</button>
+            </div>
+            {% endif %}
+
+            <div style="padding: 0.75rem; background: var(--card-bg); border-radius: 4px; margin-bottom: 1rem;">
+                📁 Backups will be stored in the <strong>"TCG Preorder Manager Backups"</strong> folder on your Google Drive. This folder is created automatically when you first connect.
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+    </form>
+</div>
+
+<!-- Hidden form for Google Drive disconnect (outside parent form to avoid nested forms) -->
+<form id="disconnect-drive-form" method="POST" action="/backups/google-drive/disconnect" style="display: none;">
+    <button type="submit" style="display: none;">Disconnect</button>
+</form>
+
+<!-- Last Backup Status -->
+<div class="card">
+    <h2>Last Backup Status</h2>
+    <div class="status-info">
+        <div class="status-row">
+            <span class="status-label">Last Run:</span>
+            <span class="status-value">{{ status.last_run or 'Never' }}</span>
+        </div>
+        <div class="status-row">
+            <span class="status-label">Status:</span>
+            <span class="status-value">
+                {% if status.last_status == 'success' %}
+                <span style="color: #059669;">✅ Success</span>
+                {% elif status.last_status == 'error' %}
+                <span style="color: #dc2626;">❌ Error</span>
+                {% else %}
+                <span style="color: #9ca3af;">⏳ Pending</span>
+                {% endif %}
+            </span>
+        </div>
+        <div class="status-row">
+            <span class="status-label">Message:</span>
+            <span class="status-value">{{ status.last_message or 'No backups have been run yet.' }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Local Backups -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="margin: 0;">Local Backups (keeps 5 most recent)</h2>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="openBackupFolder()">📂 Open Folder</button>
+    </div>
+    {% if local_backups %}
+    <table>
+        <thead>
+            <tr>
+                <th>Filename</th>
+                <th>Size</th>
+                <th>Created</th>
+                <th>Notes</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for backup in local_backups %}
+            <tr>
+                <td>{{ backup.filename }}</td>
+                <td>{{ backup.size_mb }} MB</td>
+                <td>{{ backup.created }}</td>
+                <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ backup.notes or '' }}">{{ backup.notes or '-' }}</td>
+                <td>
+                    <button type="button" title="Restore" class="icon-btn" style="background: #2563eb; color: white;" onclick="openRestoreModal('local', '{{ backup.filename }}', '{{ backup.created }}')">↩</button>
+                    <a href="/backups/download-local/{{ backup.filename }}" title="Download" class="icon-btn" style="background: #059669; color: white; text-decoration: none;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+                    </a>
+                    <button type="button" title="Delete" class="icon-btn icon-btn-danger" onclick="deleteLocalBackup('{{ backup.filename }}')">✕</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted);">No local backups found. Click "Run Backup Now" to create one.</p>
+    {% endif %}
+</div>
+
+<!-- Google Drive Backups -->
+<div class="card">
+    <h2>Google Drive Backups (keeps 5 most recent)</h2>
+    {% if status.google_connected %}
+        {% if google_backups %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Filename</th>
+                    <th>Size</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for backup in google_backups %}
+                <tr>
+                    <td>{{ backup.filename }}</td>
+                    <td>{{ backup.size_mb }} MB</td>
+                    <td>{{ backup.created }}</td>
+                    <td>
+                        <button type="button" title="Restore" class="icon-btn" style="background: #2563eb; color: white;" onclick="openRestoreModal('google_drive', '{{ backup.file_id }}', '{{ backup.created }}')">↩</button>
+                        <button type="button" title="Delete" class="icon-btn icon-btn-danger" onclick="deleteGoogleBackup('{{ backup.file_id }}')">✕</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--text-muted);">No Google Drive backups found. Backups will be uploaded automatically when you run a backup.</p>
+        {% endif %}
+    {% else %}
+    <p style="color: var(--text-muted);">Google Drive is not connected. <a href="#" onclick="openConnectModal(); return false;" style="color: #3b82f6; text-decoration: underline;">Connect now</a> to enable cloud backups.</p>
+    {% endif %}
+</div>
+
+<!-- Run Backup Modal -->
+<div id="backup-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeBackupModal()">✕</button>
+        <h2>Run Backup Now</h2>
+        <p>Create a backup of the database immediately.</p>
+        <form id="backup-form" onsubmit="runBackup(event)">
+            <div class="form-group">
+                <label for="backup_staff_name">Staff Name *</label>
+                <input type="text" id="backup_staff_name" name="staff_name" required placeholder="Enter your name">
+            </div>
+            <div class="form-group">
+                <label for="backup_notes">Notes (optional)</label>
+                <input type="text" id="backup_notes" name="notes" placeholder="e.g., Before migrating data">
+            </div>
+            <div class="button-group" style="margin-top: 1.5rem;">
+                <button type="submit" class="btn btn-primary">Run Backup</button>
+                <button type="button" class="btn btn-secondary" onclick="closeBackupModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Connect Google Drive Modal -->
+<div id="connect-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeConnectModal()">✕</button>
+        <h2>Connect Google Drive</h2>
+        <p>To enable Google Drive backups, you need to set up a Google Cloud project first:</p>
+        <ol style="padding-left: 1.5rem; line-height: 1.8;">
+            <li>Go to <a href="https://console.cloud.google.com" target="_blank" style="color: #3b82f6;">Google Cloud Console</a> and create a new project.</li>
+            <li>Enable the <strong>Google Drive API</strong> for your project.</li>
+            <li>Create <strong>OAuth 2.0 credentials</strong> (Desktop app type).</li>
+            <li>Download the <strong>credentials JSON file</strong>.</li>
+            <li>Rename it to <code>drive_credentials.json</code> and place it in the project root folder (where <code>main.py</code> is located).</li>
+            <li>Set the <strong>Authorized redirect URI</strong> to: <code>http://localhost:8000/backups/google-drive/callback</code></li>
+        </ol>
+        <p style="background: #fef3c7; padding: 0.75rem; border-radius: 4px;">⚠️ After placing the file, restart the application and click "Connect Now" to authorize access.</p>
+        <div class="button-group" style="margin-top: 1.5rem;">
+            <a href="/backups/google-drive/connect" class="btn btn-primary">Connect Now</a>
+            <button type="button" class="btn btn-secondary" onclick="closeConnectModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Restore Backup Modal -->
+<div id="restore-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeRestoreModal()">✕</button>
+        <h2>⚠️ Restore Database from Backup</h2>
+        <div style="padding: 0.75rem; background: #fef3c7; border-radius: 4px; margin-bottom: 1rem;">
+            <strong>Warning:</strong> This will replace the current database with the backup. All changes made since this backup was created will be lost permanently.
+        </div>
+        <div style="padding: 0.75rem; background: var(--th-bg); border-radius: 4px; margin-bottom: 1rem;">
+            <p style="margin: 0;"><strong>Backup:</strong> <span id="restore-backup-name"></span></p>
+            <p style="margin: 0.25rem 0 0 0;"><strong>Created:</strong> <span id="restore-backup-date"></span></p>
+        </div>
+        <form id="restore-form" onsubmit="restoreBackup(event)">
+            <input type="hidden" id="restore-storage" name="storage">
+            <input type="hidden" id="restore-id" name="id">
+            <div class="form-group">
+                <label for="restore_staff_name">Staff Name *</label>
+                <input type="text" id="restore_staff_name" name="staff_name" required placeholder="Enter your name">
+            </div>
+            <div class="button-group" style="margin-top: 1.5rem;">
+                <button type="submit" class="btn btn-danger">Restore Database</button>
+                <button type="button" class="btn btn-secondary" onclick="closeRestoreModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Import Backup Modal -->
+<div id="import-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeImportModal()">✕</button>
+        <h2>📥 Import Database from Backup File</h2>
+        <div style="padding: 0.75rem; background: #fef3c7; border-radius: 4px; margin-bottom: 1rem;">
+            <strong>Warning:</strong> This will replace the current database with the uploaded backup file. All changes made since that backup was created will be lost permanently.
+        </div>
+        <div style="padding: 0.75rem; background: var(--th-bg); border-radius: 4px; margin-bottom: 1rem;">
+            <p style="margin: 0; font-size: 0.9rem;">Select a <code>.db</code> backup file from your computer. The file will be validated before importing.</p>
+        </div>
+        <form id="import-form" onsubmit="importBackup(event)">
+            <div class="form-group">
+                <label for="import-file">Backup File (.db)</label>
+                <input type="file" id="import-file" accept=".db" required>
+                <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
+                    Selected: <strong id="import-file-name">No file selected</strong>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="import_staff_name">Staff Name *</label>
+                <input type="text" id="import_staff_name" name="staff_name" required placeholder="Enter your name">
+            </div>
+            <div class="button-group" style="margin-top: 1.5rem;">
+                <button type="submit" class="btn btn-danger">Import Database</button>
+                <button type="button" class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.toggle-switch {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+.toggle-switch input {
+    display: none;
+}
+.toggle-slider {
+    width: 44px;
+    height: 24px;
+    background: var(--border);
+    border-radius: 12px;
+    position: relative;
+    transition: background 0.3s;
+}
+.toggle-slider::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    top: 3px;
+    left: 3px;
+    transition: transform 0.3s;
+}
+.toggle-switch input:checked + .toggle-slider {
+    background: var(--primary-color);
+}
+.toggle-switch input:checked + .toggle-slider::after {
+    transform: translateX(20px);
+}
+.toggle-label {
+    margin-left: 0.75rem;
+    font-weight: 500;
+}
+.form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.form-row .form-group {
+    flex: 1;
+}
+.status-info {
+    padding: 1rem;
+    background: var(--th-bg);
+    border-radius: 4px;
+}
+.status-row {
+    display: flex;
+    margin-bottom: 0.5rem;
+}
+.status-row:last-child {
+    margin-bottom: 0;
+}
+.status-label {
+    font-weight: 500;
+    min-width: 100px;
+    color: var(--text-muted);
+}
+.status-value {
+    flex: 1;
+}
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+.page-header h1 {
+    margin: 0;
+}
+.button-group {
+    display: flex;
+    gap: 0.5rem;
+}
+</style>
+
+<script>
+// Toggle Google Drive options visibility
+function toggleGoogleDriveOptions() {
+    var storage = document.getElementById('backup_storage').value;
+    var gdOptions = document.getElementById('google_drive_options');
+    gdOptions.style.display = (storage === 'google_drive') ? 'block' : 'none';
+}
+
+// Update schedule options visibility (time and weekday)
+function updateScheduleOptions() {
+    var schedule = document.getElementById('backup_schedule').value;
+    var timeGroup = document.getElementById('backup_time_group');
+    var weekdayGroup = document.getElementById('backup_weekday_group');
+    
+    // Show time picker for daily and weekly, hide for hourly
+    if (schedule === 'hourly') {
+        timeGroup.style.display = 'none';
+        weekdayGroup.style.display = 'none';
+    } else if (schedule === 'daily') {
+        timeGroup.style.display = 'block';
+        weekdayGroup.style.display = 'none';
+    } else if (schedule === 'weekly') {
+        timeGroup.style.display = 'block';
+        weekdayGroup.style.display = 'block';
+    }
+}
+
+// Initialize schedule options on page load
+updateScheduleOptions();
+
+// Update toggle label text
+document.getElementById('backup_enabled').addEventListener('change', function() {
+    var label = document.querySelector('.toggle-label');
+    label.textContent = this.checked ? 'Enabled' : 'Disabled';
+});
+
+// Backup modal
+function openBackupModal() {
+    document.getElementById('backup-modal').style.display = 'flex';
+}
+
+function closeBackupModal() {
+    document.getElementById('backup-modal').style.display = 'none';
+}
+
+// Open backup folder in Explorer
+function openBackupFolder() {
+    fetch('/backups/open-folder')
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.status === 'success') {
+            showToast('Backup folder opened in Explorer', 'success');
+        } else {
+            showToast('Error opening folder: ' + data.message, 'error');
+        }
+    })
+    .catch(function(err) {
+        showToast('Error: ' + err.message, 'error');
+    });
+}
+
+// Run backup via AJAX
+function runBackup(e) {
+    e.preventDefault();
+    var staffName = document.getElementById('backup_staff_name').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        return;
+    }
+
+    var notes = document.getElementById('backup_notes').value.trim();
+
+    var formData = new FormData();
+    formData.append('staff_name', staffName);
+    formData.append('notes', notes);
+
+    fetch('/backups/run-json', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.status === 'success') {
+            showToast('Backup created: ' + data.message, 'success');
+            closeBackupModal();
+            // Reload page after a short delay to show updated backups
+            setTimeout(function() {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showToast('Backup failed: ' + data.message, 'error');
+        }
+    })
+    .catch(function(err) {
+        showToast('Error running backup: ' + err.message, 'error');
+    });
+}
+
+// Delete local backup
+function deleteLocalBackup(filename) {
+    if (!confirm('Delete backup: ' + filename + '?')) return;
+
+    var formData = new FormData();
+    formData.append('filename', filename);
+
+    fetch('/backups/delete-local', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.status === 'success') {
+            showToast('Deleted: ' + filename, 'success');
+            setTimeout(function() { window.location.reload(); }, 1000);
+        } else {
+            showToast('Error: ' + data.message, 'error');
+        }
+    })
+    .catch(function(err) {
+        showToast('Error deleting backup: ' + err.message, 'error');
+    });
+}
+
+// Delete Google Drive backup
+function deleteGoogleBackup(fileId) {
+    if (!confirm('Delete this backup from Google Drive?')) return;
+
+    var formData = new FormData();
+    formData.append('file_id', fileId);
+
+    fetch('/backups/delete-google', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.status === 'success') {
+            showToast('Deleted from Google Drive', 'success');
+            setTimeout(function() { window.location.reload(); }, 1000);
+        } else {
+            showToast('Error: ' + data.message, 'error');
+        }
+    })
+    .catch(function(err) {
+        showToast('Error deleting backup: ' + err.message, 'error');
+    });
+}
+
+// Restore modal
+var restoreBackupStorage = '';
+var restoreBackupId = '';
+
+function openRestoreModal(storage, id, date) {
+    restoreBackupStorage = storage;
+    restoreBackupId = id;
+    document.getElementById('restore-storage').value = storage;
+    document.getElementById('restore-id').value = id;
+    document.getElementById('restore-backup-name').textContent = id;
+    document.getElementById('restore-backup-date').textContent = date;
+    document.getElementById('restore_staff_name').value = '';
+    document.getElementById('restore-modal').style.display = 'flex';
+}
+
+function closeRestoreModal() {
+    document.getElementById('restore-modal').style.display = 'none';
+}
+
+// Restore backup via AJAX
+function restoreBackup(e) {
+    e.preventDefault();
+    var staffName = document.getElementById('restore_staff_name').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        return;
+    }
+
+    var formData = new FormData();
+    formData.append('staff_name', staffName);
+
+    var url = '';
+    if (restoreBackupStorage === 'local') {
+        formData.append('filename', restoreBackupId);
+        url = '/backups/restore-local';
+    } else {
+        formData.append('file_id', restoreBackupId);
+        url = '/backups/restore-google';
+    }
+
+    fetch(url, {
+        method: 'POST',
+        body: formData,
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.status === 'success') {
+            showToast(data.message, 'success');
+            closeRestoreModal();
+            // Reload page after a delay to reflect restored data
+            setTimeout(function() {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showToast('Restore failed: ' + data.message, 'error');
+        }
+    })
+    .catch(function(err) {
+        showToast('Error restoring backup: ' + err.message, 'error');
+    });
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeBackupModal();
+        closeConnectModal();
+        closeRestoreModal();
+        closeImportModal();
+    }
+});
+
+// Close modal on outside click
+document.getElementById('backup-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeBackupModal();
+    }
+});
+document.getElementById('connect-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeConnectModal();
+    }
+});
+document.getElementById('restore-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeRestoreModal();
+    }
+});
+document.getElementById('import-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeImportModal();
+    }
+});
+
+// Connect Google Drive modal
+function openConnectModal() {
+    document.getElementById('connect-modal').style.display = 'flex';
+}
+
+function closeConnectModal() {
+    document.getElementById('connect-modal').style.display = 'none';
+}
+
+// Import backup modal
+function openImportModal() {
+    document.getElementById('import-file').value = '';
+    document.getElementById('import_staff_name').value = '';
+    document.getElementById('import-file-name').textContent = 'No file selected';
+    document.getElementById('import-modal').style.display = 'flex';
+}
+
+function closeImportModal() {
+    document.getElementById('import-modal').style.display = 'none';
+}
+
+// Update file name display when file is selected
+document.getElementById('import-file').addEventListener('change', function(e) {
+    var fileName = e.target.files[0] ? e.target.files[0].name : 'No file selected';
+    document.getElementById('import-file-name').textContent = fileName;
+});
+
+// Import backup via AJAX
+function importBackup(e) {
+    e.preventDefault();
+    var staffName = document.getElementById('import_staff_name').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        return;
+    }
+    
+    var fileInput = document.getElementById('import-file');
+    if (!fileInput.files[0]) {
+        showToast('Please select a backup file.', 'error');
+        return;
+    }
+    
+    var formData = new FormData();
+    formData.append('backup', fileInput.files[0]);
+    formData.append('staff_name', staffName);
+    
+    fetch('/backups/import', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.status === 'success') {
+            showToast(data.message, 'success');
+            closeImportModal();
+            // Reload page after a delay to reflect imported data
+            setTimeout(function() {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showToast('Import failed: ' + data.message, 'error');
+        }
+    })
+    .catch(function(err) {
+        showToast('Error importing backup: ' + err.message, 'error');
+    });
+}
+
+// Show flash messages as toasts
+{% if request.query_params.get('success') %}
+var connectedMsg = "{{ request.query_params.get('connected', '') }}";
+if (connectedMsg) {
+    showToast('Google Drive connected successfully!', 'success');
+} else {
+    showToast('Settings saved successfully!', 'success');
+}
+{% endif %}
+{% if request.query_params.get('error') %}
+showToast({{ request.query_params.get("error", "") | tojson }}, 'error');
+{% endif %}
+</script>
+{% endblock %}

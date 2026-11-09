@@ -1,0 +1,1647 @@
+{% extends "base.html" %}
+
+{% block title %}Orders - {{ store_settings.store_name if store_settings and store_settings.store_name else 'TCG Preorder Manager' }}{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">Order History</h1>
+
+<div style="margin-bottom: 1.5rem; display: flex; gap: 0.75rem; align-items: center;">
+    <a href="/orders/new" class="btn btn-primary">+ New Order</a>
+    <button type="button" class="btn btn-secondary" onclick="openCustomerOrdersModal()" title="Filter orders by customer">
+        👤 Show Customer Orders
+    </button>
+    <div style="position: relative; display: inline-block;">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('export-dropdown').style.display = document.getElementById('export-dropdown').style.display === 'block' ? 'none' : 'block';" title="Export orders as PDF">
+            📄 Export ▼
+        </button>
+        <div id="export-dropdown" style="position: absolute; top: 100%; left: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; z-index: 30; display: none; box-shadow: var(--card-shadow); min-width: 220px; margin-top: 0.25rem;">
+            <div style="padding: 0.4rem 0.6rem; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">All Filtered Orders</div>
+            <a href="/orders/export-pdf?format=a4&{{ request.query_params }}" style="display: block; padding: 0.5rem 0.6rem; color: var(--text); text-decoration: none; border-radius: 4px; font-size: 0.9rem;">📄 A4 Print</a>
+            <a href="/orders/export-pdf?format=labels&{{ request.query_params }}" style="display: block; padding: 0.5rem 0.6rem; color: var(--text); text-decoration: none; border-radius: 4px; font-size: 0.9rem;">🏷️ Address Labels (21UP)</a>
+            <div style="border-top: 1px solid var(--border); margin: 0.35rem 0;"></div>
+            <div style="padding: 0.4rem 0.6rem; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Selected Orders</div>
+            <a href="javascript:void(0)" onclick="exportSelectedOrders('a4')" style="display: block; padding: 0.5rem 0.6rem; color: var(--text); text-decoration: none; border-radius: 4px; font-size: 0.9rem;">📄 A4 Print</a>
+            <a href="javascript:void(0)" onclick="exportSelectedOrders('labels')" style="display: block; padding: 0.5rem 0.6rem; color: var(--text); text-decoration: none; border-radius: 4px; font-size: 0.9rem;">🏷️ Address Labels (21UP)</a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2 style="margin-bottom: 1rem;">Orders</h2>
+
+    <!-- Search and Filter Section -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; padding: 1rem; background: var(--th-bg); border-radius: 6px;">
+        <!-- Customer Search -->
+        <div>
+            <label for="customer_search" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Search Customer</label>
+            <div style="position: relative;">
+                <input type="text" id="customer_search" placeholder="Type to search customers..." value="{{ customer_search }}" autocomplete="off" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.95rem; background: var(--input-bg); color: var(--text);">
+                <input type="hidden" id="customer_search_hidden" name="customer_search" value="{{ customer_search }}">
+                <input type="hidden" id="customer_id_hidden" name="customer_id" value="{{ customer_id }}">
+                <div id="customer_search_results" class="autocomplete-dropdown"></div>
+            </div>
+        </div>
+
+        <!-- Product Search -->
+        <div>
+            <label for="product_search" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Search Item</label>
+            <div style="position: relative;">
+                <input type="text" id="product_search" placeholder="Type to search items..." value="{% if product_id %}{{ selected_product_name }}{% endif %}" autocomplete="off" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.95rem; background: var(--input-bg); color: var(--text);">
+                <input type="hidden" id="product_id_hidden" name="product_id" value="{{ product_id }}">
+                <div id="product_search_results" class="autocomplete-dropdown"></div>
+            </div>
+        </div>
+
+        <!-- Set Name Filter -->
+        <div id="set_filter_wrapper" style="position: relative;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; cursor: pointer;" for="set_toggle">Filter by Set Name</label>
+            <div id="set_filter_bar" style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); cursor: pointer; font-size: 0.9rem; color: var(--text-muted);" onclick="document.getElementById('set_dropdown').style.display = document.getElementById('set_dropdown').style.display === 'block' ? 'none' : 'block';">
+                {% if selected_subcategories|length > 0 %}
+                Filtered: {% for sub in subcategories %}{% if sub.id in selected_subcategories %}{{ sub.name }}{% if not loop.last %}, {% endif %}{% endif %}{% endfor %} <span style="float: right;">▼</span>
+                {% else %}
+                All Set Names <span style="float: right;">▼</span>
+                {% endif %}
+            </div>
+            <div id="set_dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; padding: 0.75rem; z-index: 20; display: none; box-shadow: var(--card-shadow); margin-top: 0.25rem;">
+                <input type="text" id="set_filter_search" placeholder="Search set names..." style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.95rem; margin-bottom: 0.5rem; background: var(--input-bg); color: var(--text); box-sizing: border-box;">
+                <div id="set_checkboxes" style="max-height: 320px; overflow-y: auto;">
+                    <label style="display: block; margin-bottom: 0.25rem; cursor: pointer;">
+                        <input type="checkbox" id="set_select_all" style="margin-right: 0.5rem;"> <strong>Select All</strong>
+                    </label>
+                    {% for sub in subcategories %}
+                    <label class="set_checkbox_label" style="display: block; margin-bottom: 0.25rem; cursor: pointer;" data-set-name="{{ sub.name|lower }}">
+                        <input type="checkbox" class="set_checkbox" name="subcategory_ids" value="{{ sub.id }}" {% if sub.id in selected_subcategories %}checked{% endif %} style="margin-right: 0.5rem;"> {{ sub.name }}{% if sub.category %} <span style="color: var(--text-muted); font-size: 0.8rem;">[{{ sub.category.name }}]</span>{% endif %}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Show Deleted Toggle -->
+        <div>
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Deleted Orders</label>
+            <a href="/orders?show_deleted=1{% if category_ids %}&category_ids={{ category_ids }}{% endif %}{% if subcategory_ids %}&subcategory_ids={{ subcategory_ids }}{% endif %}{% if customer_search %}&customer_search={{ customer_search }}{% endif %}{% if customer_id %}&customer_id={{ customer_id }}{% endif %}{% if product_id %}&product_id={{ product_id }}{% endif %}" class="show-deleted-toggle" style="display: inline-block; padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--text); text-decoration: none; font-size: 0.9rem; cursor: pointer;">
+                {% if show_deleted %}
+                ✕ Hide Deleted
+                {% else %}
+                👁 Show Deleted
+                {% endif %}
+            </a>
+        </div>
+
+        <!-- Category Filter -->
+        <div id="category_filter_wrapper" style="position: relative;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; cursor: pointer;" for="category_toggle">Filter by Category</label>
+            <div id="category_filter_bar" style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); cursor: pointer; font-size: 0.9rem; color: var(--text-muted);" onclick="document.getElementById('category_dropdown').style.display = document.getElementById('category_dropdown').style.display === 'block' ? 'none' : 'block';">
+                {% if selected_categories|length > 0 %}
+                Filtered: {% for cat in categories %}{% if cat.id in selected_categories %}{{ cat.name }}{% if not loop.last %}, {% endif %}{% endif %}{% endfor %} <span style="float: right;">▼</span>
+                {% else %}
+                All Categories <span style="float: right;">▼</span>
+                {% endif %}
+            </div>
+            <div id="category_dropdown" style="position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; padding: 0.75rem; z-index: 20; display: none; box-shadow: var(--card-shadow); margin-top: 0.25rem;">
+                <input type="text" id="category_filter_search" placeholder="Search categories..." style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.95rem; margin-bottom: 0.5rem; background: var(--input-bg); color: var(--text); box-sizing: border-box;">
+                <div id="category_checkboxes" style="max-height: 320px; overflow-y: auto;">
+                    <label style="display: block; margin-bottom: 0.25rem; cursor: pointer;">
+                        <input type="checkbox" id="category_select_all" style="margin-right: 0.5rem;"> <strong>Select All</strong>
+                    </label>
+                    {% for category in categories %}
+                    <label class="category_checkbox_label" style="display: block; margin-bottom: 0.25rem; cursor: pointer;" data-category-name="{{ category.name|lower }}">
+                        <input type="checkbox" class="category_checkbox" name="category_ids" value="{{ category.id }}" {% if category.id in selected_categories %}checked{% endif %} style="margin-right: 0.5rem;"> {{ category.name }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Orders Table -->
+    {% if orders %}
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 30px;"><input type="checkbox" id="select-all-orders" onchange="toggleSelectAllOrders()" title="Select all orders" style="cursor: pointer;"></th>
+                <th>Order #</th>
+                <th>Date</th>
+                <th>Customer</th>
+                <th style="text-align: right;">Total</th>
+                <th style="text-align: right;">Deposit</th>
+                <th style="text-align: right;">Balance</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+{% set picked, total = order.pickup_progress %}
+            <tr class="order-row" data-order-id="{{ order.id }}" style="{% if order.deleted %}opacity: 0.4; text-decoration: line-through;{% elif order.is_fully_picked_up %}opacity: 0.65;{% endif %}">
+                <td><input type="checkbox" class="order-checkbox" value="{{ order.id }}" onchange="updateSelectedCount()" title="Select order #{{ order.id }}" style="cursor: pointer;"></td>
+                <td>{{ order.id }}</td>
+                <td>{{ order.order_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td><a href="/orders/{{ order.id }}" class="customer-badge">{{ order.customer.full_name }}</a>{% if order.deleted %} <span class="status-badge status-deleted">🗑 Deleted</span>{% endif %}</td>
+                <td style="text-align: right; font-weight: 600;">$ {{ "%.2f" % order.total }}</td>
+                <td style="text-align: right;" data-deposit="{{ order.id }}">$ {{ "%.2f" % order.deposit }}</td>
+                <td style="text-align: right; font-weight: 600; color: {% if order.balance > 0 %}#e74c3c{% else %}#27ae60{% endif %};" data-balance="{{ order.id }}">$ {{ "%.2f" % order.balance }}</td>
+                <td>
+                    {% if order.deleted %}
+                    <span class="status-badge status-deleted">🗑 Deleted</span>
+                    {% elif order.is_fully_picked_up %}
+                    <span class="status-badge status-picked">✓ {{ picked }}/{{ total }}</span>
+                    {% elif picked > 0 %}
+                    <span class="status-badge status-partial">⏳ {{ picked }}/{{ total }}</span>
+                    {% else %}
+                    <span class="status-badge status-pending">Pending</span>
+                    {% endif %}
+                </td>
+                <td style="display: flex; gap: 0.5rem;">
+                    {% if order.deleted %}
+                    <button type="button" class="btn btn-sm btn-warning" onclick="openRestoreModal({{ order.id }})" title="Restore this order">
+                        ↩ Restore
+                    </button>
+                    {% else %}
+                    <div style="position: relative; display: inline-block;" class="view-hover" data-order-id="{{ order.id }}">
+                        <a href="/orders/{{ order.id }}" class="btn btn-primary btn-sm view-btn" title="View order details">View</a>
+                        <!-- Hover Tooltip with Order Items -->
+                        <div class="order-items-tooltip">
+                            <div style="font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem;">Order Items:</div>
+                            {% for item in order.items %}
+                            {% set picked_qty = item.picked_up_quantity or 0 %}
+                            {% set total_qty = item.quantity %}
+                            {% set pct = (picked_qty / total_qty * 100) if total_qty > 0 else 0 %}
+                            {% if picked_qty >= total_qty %}
+                            {% set bar_color = '#27ae60' %}
+                            {% set icon = '✓' %}
+                            {% elif picked_qty > 0 %}
+                            {% set bar_color = '#3498db' %}
+                            {% set icon = '⏳' %}
+                            {% else %}
+                            {% set bar_color = '#95a5a6' %}
+                            {% set icon = '○' %}
+                            {% endif %}
+                            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0.5rem; border: 1px solid var(--border-light); border-radius: 4px; margin-bottom: 0.35rem;">
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-size: 0.85rem; font-weight: 500; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ item.product.name if item.product else 'Unknown' }}">{{ item.product.name if item.product else 'Unknown' }}</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Qty: {{ total_qty }} | $ {{ "%.2f" % item.unit_price }} | Subtotal: $ {{ "%.2f" % (item.quantity * item.unit_price) }}</div>
+                                </div>
+                                <div style="text-align: center; flex-shrink: 0;">
+                                    <span style="font-size: 0.85rem;">{{ icon }}</span>
+                                    <div style="font-size: 0.75rem; font-weight: 600; color: {{ bar_color }};">{{ picked_qty }}/{{ total_qty }}</div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-success" onclick="openPickupModal({{ order.id }})" title="Manage item pickup">
+                        📦 Pickup
+                    </button>
+                    <button type="button" class="btn btn-sm btn-success" onclick="openPaymentModalForOrder({{ order.id }}, '{{ order.customer.full_name }}', {{ order.balance }})" title="Add payment">
+                        💰 Pay
+                    </button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted);">No orders found. <a href="/orders/new">Create your first order</a>.</p>
+    {% endif %}
+</div>
+
+<style>
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.status-picked {
+    background: #27ae60;
+    color: white;
+}
+.status-deleted {
+    background: #95a5a6;
+    color: white;
+}
+.status-pending {
+    background: #f39c12;
+    color: white;
+}
+.status-partial {
+    background: #3498db;
+    color: white;
+}
+.btn-success {
+    background: #27ae60;
+    color: white;
+    border: none;
+}
+.btn-success:hover {
+    background: #219a52;
+}
+.btn-warning {
+    background: #f39c12;
+    color: white;
+    border: none;
+}
+.btn-warning:hover {
+    background: #e67e22;
+}
+.btn-info {
+    background: #3498db;
+    color: white;
+    border: none;
+}
+.btn-info:hover {
+    background: #2980b9;
+}
+/* Modal Overlay Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal-box {
+    background: var(--bg-card);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 2rem;
+    max-width: 450px;
+    width: 90%;
+    box-shadow: var(--card-shadow);
+}
+.modal-box h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+}
+.modal-box .form-group {
+    margin-bottom: 1rem;
+}
+.modal-box label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+.modal-box input, .modal-box select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.95rem;
+    background: var(--input-bg);
+    color: var(--text);
+    box-sizing: border-box;
+}
+.modal-box .modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+.modal-box .info-text {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+/* Hover Tooltip for View Button */
+.view-hover {
+    position: relative;
+    display: inline-block;
+}
+.order-items-tooltip {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem;
+    min-width: 280px;
+    max-width: 400px;
+    max-height: 300px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+    margin-bottom: 8px;
+}
+.view-hover:hover .order-items-tooltip {
+    display: block;
+}
+.order-items-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: var(--border);
+}
+</style>
+
+<!-- Item Pickup Modal -->
+<div id="pickup-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 550px;">
+        <h3 id="pickup-modal-title">Manage Pickup</h3>
+        <p class="info-text" id="pickup-modal-info">Use the + and - buttons to adjust pickup units, or use the quick buttons below.</p>
+        <!-- Order Summary Section -->
+        <div id="pickup-order-summary" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: var(--th-bg); border-radius: 6px;">
+            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--text-muted);">Order Items</h4>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 0.5rem;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <th style="text-align: left; padding: 0.3rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Product</th>
+                        <th style="text-align: center; padding: 0.3rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Qty</th>
+                        <th style="text-align: right; padding: 0.3rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Price</th>
+                        <th style="text-align: right; padding: 0.3rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody id="pickup-items-summary-list"></tbody>
+            </table>
+            <div style="border-top: 1px solid var(--border); padding-top: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; font-size: 0.9rem;">
+                    <span>Total:</span><strong id="pickup-summary-total"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; font-size: 0.9rem;">
+                    <span>Deposit Paid:</span><strong id="pickup-summary-deposit" style="color: #27ae60;"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.95rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
+                    <span>Balance Owing:</span><strong id="pickup-summary-balance" style="color: #e74c3c;"></strong>
+                </div>
+            </div>
+        </div>
+        <div id="pickup-items-list" style="max-height: 300px; overflow-y: auto; margin-bottom: 1rem;"></div>
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-sm btn-info" onclick="pickupMarkAll()" title="Mark all items as fully picked up">✓ Mark All</button>
+            <button type="button" class="btn btn-sm btn-warning" onclick="pickupResetAll()" title="Reset all pickup progress">↩ Reset All</button>
+        </div>
+        <div class="form-group">
+            <label for="pickup-staff-name">Staff Name *</label>
+            <input type="text" id="pickup-staff-name" placeholder="Your name" required>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closePickupModal()">Cancel</button>
+            <button type="button" class="btn btn-success" onclick="confirmPickup()">Update Pickup</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.pickup-item-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    transition: background 0.15s;
+}
+.pickup-item-row:hover {
+    background: var(--th-bg);
+}
+.pickup-item-row .item-name {
+    flex: 1;
+    font-size: 0.95rem;
+}
+.pickup-item-row .item-qty {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+.pickup-progress-bar {
+    cursor: pointer;
+    width: 140px;
+    text-align: center;
+    padding: 0.25rem;
+}
+.pickup-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text);
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+.pickup-btn:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+.pickup-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+.pickup-progress-bar .pickup-bar-track {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 0.25rem;
+}
+.pickup-progress-bar .pickup-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.2s;
+}
+</style>
+
+<!-- Payment Modal -->
+<div id="payment-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <h3>Add Payment</h3>
+        <p class="info-text" id="payment-modal-info"></p>
+        <div class="form-group" id="payment-order-group">
+            <label for="payment-order-select">Order #</label>
+            <select id="payment-order-select" onchange="updatePaymentBalance()">
+                <option value="">— Select an order —</option>
+                {% for order in orders %}
+                <option value="{{ order.id }}" data-balance="{{ order.balance }}" data-customer="{{ order.customer.full_name }}">Order #{{ order.id }} — {{ order.customer.full_name }} (Balance: ${{ "%.2f" % order.balance }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" id="payment-order-fixed" style="display: none;">
+            <label>Order</label>
+            <div id="payment-order-fixed-text" style="padding: 0.5rem; background: var(--th-bg); border-radius: 4px; font-size: 0.95rem; color: var(--text);"></div>
+        </div>
+        <!-- Order Summary Section -->
+        <div id="payment-order-summary" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: var(--th-bg); border-radius: 6px;">
+            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.95rem; color: var(--text-muted);">Order Items</h4>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 0.75rem;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <th style="text-align: left; padding: 0.4rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Product</th>
+                        <th style="text-align: center; padding: 0.4rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Qty</th>
+                        <th style="text-align: right; padding: 0.4rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Price</th>
+                        <th style="text-align: right; padding: 0.4rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody id="payment-items-list"></tbody>
+            </table>
+            <div style="border-top: 1px solid var(--border); padding-top: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; font-size: 0.9rem;">
+                    <span>Total:</span><strong id="payment-summary-total"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; font-size: 0.9rem;">
+                    <span>Deposit Paid:</span><strong id="payment-summary-deposit" style="color: #27ae60;"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
+                    <span>Balance Owing:</span><strong id="payment-summary-balance" style="color: #e74c3c;"></strong>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="payment-amount">Amount ($)</label>
+            <input type="number" id="payment-amount" step="0.01" min="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+            <label for="payment-type">Payment Type</label>
+            <select id="payment-type">
+                <option value="cash">Cash</option>
+                <option value="eftpos">EFTPOS</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="payment-staff-name">Staff Name *</label>
+            <input type="text" id="payment-staff-name" placeholder="Your name" required>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closePaymentModal()">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="showPaymentConfirmModal()">Continue</button>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Confirmation Modal -->
+<div id="payment-confirm-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button type="button" class="modal-close" onclick="closePaymentConfirmModal()">&times;</button>
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <span style="font-size: 2rem;">💰</span>
+            <h3 style="margin: 0;">Confirm Payment</h3>
+        </div>
+        <p style="margin-bottom: 1rem;">Please confirm the payment details below before processing.</p>
+        <div style="margin-bottom: 1rem; padding: 0.75rem; background: var(--th-bg); border-radius: 6px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                <span>Payment Amount:</span><strong id="confirm-amount" style="font-size: 1.2rem; color: #27ae60;"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                <span>Payment Method:</span><strong id="confirm-method"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
+                <span>Staff Name:</span><strong id="confirm-staff"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>Current Balance:</span><strong id="confirm-balance"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Remaining After Payment:</span><strong id="confirm-remaining"></strong>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="backToPaymentModal()">Back</button>
+            <button type="button" class="btn btn-success" onclick="processPayment()">Confirm Payment</button>
+        </div>
+    </div>
+</div>
+
+<!-- Restore Order Modal -->
+<div id="restore-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button type="button" class="modal-close" onclick="closeRestoreModal()">&times;</button>
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <span style="font-size: 2rem;">↩️</span>
+            <h3 style="margin: 0;">Restore Order</h3>
+        </div>
+        <p style="margin-bottom: 1rem;">This will restore the deleted order and deduct stock from inventory again.</p>
+        <div class="form-group">
+            <label for="restore-staff-name">Staff Name *</label>
+            <input type="text" id="restore-staff-name" placeholder="Your name" required>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeRestoreModal()">Cancel</button>
+            <button type="button" class="btn btn-warning" onclick="confirmRestore()">Restore Order</button>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Orders Modal -->
+<div id="customer-orders-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button type="button" class="modal-close" onclick="closeCustomerOrdersModal()">&times;</button>
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <span style="font-size: 2rem;">👤</span>
+            <h3 style="margin: 0;">Show Customer Orders</h3>
+        </div>
+        <p class="info-text">Search for a customer to view all their orders.</p>
+        <div class="form-group" style="position: relative;">
+            <label for="customer-orders-search">Search Customer</label>
+            <input type="text" id="customer-orders-search" placeholder="Type to search customers..." autocomplete="off">
+            <div id="customer-orders-results" class="autocomplete-dropdown" style="top: calc(100% + 2px);"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Item Pickup Modal
+var currentPickupOrderId = null;
+var currentPickupItems = [];
+
+// Order items data embedded from server
+var orderItemsData = {
+    {% for order in orders %}
+    {{ order.id }}: [
+        {% for item in order.items %}
+        {id: {{ item.id }}, product_name: "{{ item.product.name if item.product else 'Unknown' }}", quantity: {{ item.quantity }}, picked_up_quantity: {{ item.picked_up_quantity or 0 }}}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ],
+    {% endfor %}
+};
+
+function openPickupModal(orderId) {
+    currentPickupOrderId = orderId;
+    var items = orderItemsData[orderId] || [];
+    currentPickupItems = items;
+    
+    document.getElementById('pickup-modal-title').textContent = 'Manage Pickup — Order #' + orderId;
+    
+    var list = document.getElementById('pickup-items-list');
+    list.innerHTML = '';
+    
+    if (items.length === 0) {
+        list.innerHTML = '<p style="color: var(--text-muted);">No items in this order.</p>';
+    } else {
+        items.forEach(function(item) {
+            var row = document.createElement('div');
+            row.className = 'pickup-item-row';
+            
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'item-name';
+            nameSpan.textContent = item.product_name;
+            
+            var qtySpan = document.createElement('span');
+            qtySpan.className = 'item-qty';
+            qtySpan.textContent = '(qty: ' + item.quantity + ')';
+            
+            // Progress bar with +/- controls
+            var picked = item.picked_up_quantity || 0;
+            var total = item.quantity;
+            
+            var controlsDiv = document.createElement('div');
+            controlsDiv.className = 'pickup-controls';
+            
+            // Minus button
+            var minusBtn = document.createElement('button');
+            minusBtn.type = 'button';
+            minusBtn.className = 'pickup-btn';
+            minusBtn.textContent = '-';
+            minusBtn.title = 'Decrease pickup';
+            minusBtn.onclick = function() { pickupAdjust(item.id, -1); };
+            
+            // Progress bar
+            var progressBar = document.createElement('div');
+            progressBar.className = 'pickup-progress-bar';
+            progressBar.setAttribute('data-item-id', item.id);
+            progressBar.setAttribute('data-picked', picked);
+            progressBar.setAttribute('data-total', total);
+            
+            var icon, color;
+            if (picked === total && total > 0) { icon = '✓'; color = '#27ae60'; }
+            else if (picked > 0) { icon = '⏳'; color = '#3498db'; }
+            else { icon = '○'; color = '#95a5a6'; }
+            
+            progressBar.innerHTML = 
+                '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+                    '<span style="font-size: 1rem; color: ' + color + '">' + icon + '</span>' +
+                    '<span style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">' + picked + '/' + total + '</span>' +
+                '</div>' +
+                '<div class="pickup-bar-track"><div class="pickup-bar-fill" style="width: ' + (total > 0 ? (picked / total * 100) : 0) + '%; background: ' + color + '"></div></div>';
+            
+            // Plus button
+            var plusBtn = document.createElement('button');
+            plusBtn.type = 'button';
+            plusBtn.className = 'pickup-btn';
+            plusBtn.textContent = '+';
+            plusBtn.title = 'Increase pickup';
+            plusBtn.onclick = function() { pickupAdjust(item.id, 1); };
+            
+            controlsDiv.appendChild(minusBtn);
+            controlsDiv.appendChild(progressBar);
+            controlsDiv.appendChild(plusBtn);
+            
+            row.appendChild(nameSpan);
+            row.appendChild(qtySpan);
+            row.appendChild(controlsDiv);
+            list.appendChild(row);
+        });
+    }
+    
+    // Fetch order summary to display items and finance info
+    fetch('/orders/' + orderId + '/summary-json')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                populatePickupSummary(data);
+            }
+        })
+        .catch(function(error) {
+            console.error('Error fetching order summary:', error);
+        });
+    
+    document.getElementById('pickup-staff-name').value = '';
+    document.getElementById('pickup-modal').style.display = 'flex';
+    setTimeout(function() {
+        document.getElementById('pickup-staff-name').focus();
+    }, 100);
+}
+
+// Adjust pickup by delta (+1 or -1) for a specific item
+function pickupAdjust(itemId, delta) {
+    var el = document.querySelector('#pickup-items-list .pickup-progress-bar[data-item-id="' + itemId + '"]');
+    if (!el) return;
+    var picked = parseInt(el.getAttribute('data-picked')) || 0;
+    var total = parseInt(el.getAttribute('data-total')) || 0;
+    if (total === 0) return;
+    picked = Math.max(0, Math.min(total, picked + delta));
+    el.setAttribute('data-picked', picked);
+    
+    var icon, color;
+    if (picked === total && total > 0) { icon = '✓'; color = '#27ae60'; }
+    else if (picked > 0) { icon = '⏳'; color = '#3498db'; }
+    else { icon = '○'; color = '#95a5a6'; }
+    
+    el.innerHTML = 
+        '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+            '<span style="font-size: 1rem; color: ' + color + '">' + icon + '</span>' +
+            '<span style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">' + picked + '/' + total + '</span>' +
+        '</div>' +
+        '<div class="pickup-bar-track"><div class="pickup-bar-fill" style="width: ' + (total > 0 ? (picked / total * 100) : 0) + '%; background: ' + color + '"></div></div>';
+}
+
+// Mark all items as fully picked up
+function pickupMarkAll() {
+    document.querySelectorAll('#pickup-items-list .pickup-progress-bar').forEach(function(el) {
+        var total = parseInt(el.getAttribute('data-total')) || 0;
+        el.setAttribute('data-picked', total);
+        var icon = '✓', color = '#27ae60';
+        el.innerHTML = 
+            '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+                '<span style="font-size: 1rem; color: ' + color + '">' + icon + '</span>' +
+                '<span style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">' + total + '/' + total + '</span>' +
+            '</div>' +
+            '<div class="pickup-bar-track"><div class="pickup-bar-fill" style="width: 100%; background: ' + color + '"></div></div>';
+    });
+    showToast('All items marked as picked up.', 'info');
+}
+
+// Reset all pickup progress
+function pickupResetAll() {
+    document.querySelectorAll('#pickup-items-list .pickup-progress-bar').forEach(function(el) {
+        var total = parseInt(el.getAttribute('data-total')) || 0;
+        el.setAttribute('data-picked', 0);
+        var icon = '○', color = '#95a5a6';
+        el.innerHTML = 
+            '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+                '<span style="font-size: 1rem; color: ' + color + '">' + icon + '</span>' +
+                '<span style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">0/' + total + '</span>' +
+            '</div>' +
+            '<div class="pickup-bar-track"><div class="pickup-bar-fill" style="width: 0%; background: ' + color + '"></div></div>';
+    });
+    showToast('All pickup progress reset.', 'info');
+}
+
+function populatePickupSummary(data) {
+    var summaryDiv = document.getElementById('pickup-order-summary');
+    var itemsList = document.getElementById('pickup-items-summary-list');
+    itemsList.innerHTML = '';
+    data.items.forEach(function(item) {
+        var row = '<tr style="border-bottom: 1px solid var(--border);">' +
+            '<td style="padding: 0.3rem 0.5rem; font-size: 0.9rem;">' + item.product_name + '</td>' +
+            '<td style="padding: 0.3rem 0.5rem; font-size: 0.9rem; text-align: center;">' + item.quantity + '</td>' +
+            '<td style="padding: 0.3rem 0.5rem; font-size: 0.9rem; text-align: right;">$ ' + item.unit_price.toFixed(2) + '</td>' +
+            '<td style="padding: 0.3rem 0.5rem; font-size: 0.9rem; text-align: right;">$ ' + item.subtotal.toFixed(2) + '</td>' +
+            '</tr>';
+        itemsList.innerHTML += row;
+    });
+    document.getElementById('pickup-summary-total').textContent = '$ ' + data.total.toFixed(2);
+    document.getElementById('pickup-summary-deposit').textContent = '$ ' + data.deposit.toFixed(2);
+    document.getElementById('pickup-summary-balance').textContent = '$ ' + data.balance.toFixed(2);
+    summaryDiv.style.display = 'block';
+}
+
+function clearPickupSummary() {
+    document.getElementById('pickup-order-summary').style.display = 'none';
+    document.getElementById('pickup-items-summary-list').innerHTML = '';
+}
+
+function closePickupModal() {
+    document.getElementById('pickup-modal').style.display = 'none';
+    currentPickupOrderId = null;
+}
+
+function confirmPickup() {
+    var staffName = document.getElementById('pickup-staff-name').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        document.getElementById('pickup-staff-name').focus();
+        return;
+    }
+    
+    var formData = new FormData();
+    formData.append('staff_name', staffName);
+    
+    // Read pickup quantity from progress bars
+    var bars = document.querySelectorAll('#pickup-items-list .pickup-progress-bar[data-item-id]');
+    bars.forEach(function(el) {
+        var itemId = el.getAttribute('data-item-id');
+        var picked = parseInt(el.getAttribute('data-picked')) || 0;
+        formData.append('item_' + itemId, picked);
+    });
+    
+    fetch('/orders/' + currentPickupOrderId + '/update-item-pickup', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showToast(data.error, 'error', 30000);
+            return;
+        }
+        closePickupModal();
+        
+        // Update the order row's status badge
+        var row = document.querySelector('.order-row[data-order-id="' + currentPickupOrderId + '"]');
+        if (row) {
+            row.style.opacity = data.is_fully_picked_up ? '0.65' : '1';
+            var badge = row.querySelector('.status-badge');
+            if (data.is_fully_picked_up) {
+                badge.className = 'status-badge status-picked';
+                badge.textContent = '✓ ' + data.pickup_progress;
+            } else if (data.pickup_progress.split('/')[0] > 0) {
+                badge.className = 'status-badge status-partial';
+                badge.textContent = '⏳ ' + data.pickup_progress;
+            } else {
+                badge.className = 'status-badge status-pending';
+                badge.textContent = 'Pending';
+            }
+        }
+        
+        // Update local data and item row checkboxes
+        if (data.items) {
+            data.items.forEach(function(item) {
+                var localItem = currentPickupItems.find(function(li) { return li.id === item.item_id; });
+                if (localItem) {
+                    localItem.is_fully_picked_up = item.is_fully_picked_up;
+                }
+            });
+            if (!orderItemsData[currentPickupOrderId]) {
+                orderItemsData[currentPickupOrderId] = [];
+            }
+            orderItemsData[currentPickupOrderId] = currentPickupItems;
+        }
+        
+        // Update the expandable items row ✓/✗ indicators
+        var itemsRow = document.getElementById('order-items-' + currentPickupOrderId);
+        if (itemsRow && data.items) {
+            data.items.forEach(function(item) {
+                var checkbox = itemsRow.querySelector('input[data-item-id="' + item.item_id + '"]');
+                if (checkbox) {
+                    checkbox.checked = item.is_fully_picked_up;
+                }
+                // Update the ✓/✗ indicator
+                var indicator = itemsRow.querySelector('.item-pickup-indicator[data-item-id="' + item.item_id + '"]');
+                if (indicator) {
+                    indicator.textContent = item.is_fully_picked_up ? '✓' : '✗';
+                    indicator.style.color = item.is_fully_picked_up ? '#27ae60' : '#e74c3c';
+                }
+            });
+        }
+        
+        var msg = 'Pickup updated for Order #' + currentPickupOrderId + '! (' + data.pickup_progress + ')';
+        showToast(msg, 'success');
+        setTimeout(function() { window.location.reload(); }, 1000);
+    })
+    .catch(error => {
+        showToast('Error updating pickup status. Please try again.', 'error');
+        console.error('Error:', error);
+    });
+}
+
+// Payment Modal
+var currentPaymentOrderId = null;
+var currentPaymentBalance = 0;
+var pendingPayment = null;
+
+function openPaymentModal() {
+    currentPaymentOrderId = null;
+    currentPaymentBalance = 0;
+    document.getElementById('payment-modal-info').textContent = 'Select an order to add a payment.';
+    // Show the order dropdown, hide fixed order info
+    document.getElementById('payment-order-group').style.display = 'block';
+    document.getElementById('payment-order-fixed').style.display = 'none';
+    document.getElementById('payment-order-select').value = '';
+    document.getElementById('payment-amount').value = '';
+    document.getElementById('payment-type').value = 'cash';
+    document.getElementById('payment-staff-name').value = '';
+    document.getElementById('payment-modal').style.display = 'flex';
+    setTimeout(function() {
+        document.getElementById('payment-order-select').focus();
+    }, 100);
+}
+
+function openPaymentModalForOrder(orderId, customerName, balance) {
+    currentPaymentOrderId = orderId;
+    currentPaymentBalance = balance;
+    document.getElementById('payment-modal-info').textContent = 'Customer: ' + customerName + ' | Balance: $' + balance.toFixed(2);
+    // Hide the order dropdown, show fixed order info
+    document.getElementById('payment-order-group').style.display = 'none';
+    document.getElementById('payment-order-fixed').style.display = 'block';
+    document.getElementById('payment-order-fixed-text').textContent = 'Order #' + orderId + ' — ' + customerName + ' (Balance: $' + balance.toFixed(2) + ')';
+    document.getElementById('payment-amount').value = '';
+    document.getElementById('payment-type').value = 'cash';
+    document.getElementById('payment-staff-name').value = '';
+    document.getElementById('payment-modal').style.display = 'flex';
+    // Fetch order summary to display items
+    fetch('/orders/' + orderId + '/summary-json')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                populateOrderSummary(data);
+            }
+        })
+        .catch(function(error) {
+            console.error('Error fetching order summary:', error);
+        });
+    setTimeout(function() {
+        document.getElementById('payment-amount').focus();
+    }, 100);
+}
+
+function populateOrderSummary(data) {
+    var summaryDiv = document.getElementById('payment-order-summary');
+    var itemsList = document.getElementById('payment-items-list');
+    itemsList.innerHTML = '';
+    data.items.forEach(function(item) {
+        var row = '<tr style="border-bottom: 1px solid var(--border);">' +
+            '<td style="padding: 0.4rem 0.5rem; font-size: 0.9rem;">' + item.product_name + '</td>' +
+            '<td style="padding: 0.4rem 0.5rem; font-size: 0.9rem; text-align: center;">' + item.quantity + '</td>' +
+            '<td style="padding: 0.4rem 0.5rem; font-size: 0.9rem; text-align: right;">$ ' + item.unit_price.toFixed(2) + '</td>' +
+            '<td style="padding: 0.4rem 0.5rem; font-size: 0.9rem; text-align: right;">$ ' + item.subtotal.toFixed(2) + '</td>' +
+            '</tr>';
+        itemsList.innerHTML += row;
+    });
+    document.getElementById('payment-summary-total').textContent = '$ ' + data.total.toFixed(2);
+    document.getElementById('payment-summary-deposit').textContent = '$ ' + data.deposit.toFixed(2);
+    document.getElementById('payment-summary-balance').textContent = '$ ' + data.balance.toFixed(2);
+    summaryDiv.style.display = 'block';
+}
+
+function clearOrderSummary() {
+    document.getElementById('payment-order-summary').style.display = 'none';
+    document.getElementById('payment-items-list').innerHTML = '';
+}
+
+function updatePaymentBalance() {
+    var select = document.getElementById('payment-order-select');
+    var option = select.options[select.selectedIndex];
+    if (option && option.value) {
+        currentPaymentOrderId = parseInt(option.value);
+        currentPaymentBalance = parseFloat(option.getAttribute('data-balance')) || 0;
+        document.getElementById('payment-modal-info').textContent = 'Customer: ' + option.getAttribute('data-customer') + ' | Balance: $' + currentPaymentBalance.toFixed(2);
+    } else {
+        currentPaymentOrderId = null;
+        currentPaymentBalance = 0;
+        document.getElementById('payment-modal-info').textContent = 'Select an order to add a payment.';
+    }
+}
+
+function closePaymentModal() {
+    document.getElementById('payment-modal').style.display = 'none';
+    currentPaymentOrderId = null;
+    // Reset to show dropdown by default
+    document.getElementById('payment-order-group').style.display = 'block';
+    document.getElementById('payment-order-fixed').style.display = 'none';
+    clearOrderSummary();
+}
+
+function closePaymentConfirmModal() {
+    document.getElementById('payment-confirm-modal').style.display = 'none';
+}
+
+function backToPaymentModal() {
+    document.getElementById('payment-confirm-modal').style.display = 'none';
+    document.getElementById('payment-modal').style.display = 'flex';
+}
+
+function showPaymentConfirmModal() {
+    var orderId = currentPaymentOrderId;
+    if (!orderId) {
+        showToast('Please select an order.', 'error');
+        document.getElementById('payment-order-select').focus();
+        return;
+    }
+    var amount = parseFloat(document.getElementById('payment-amount').value);
+    var paymentType = document.getElementById('payment-type').value;
+    var staffName = document.getElementById('payment-staff-name').value.trim();
+    
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        document.getElementById('payment-staff-name').focus();
+        return;
+    }
+    if (!amount || amount <= 0) {
+        showToast('Please enter a valid payment amount.', 'error');
+        return;
+    }
+    // Client-side overpayment check
+    if (amount > currentPaymentBalance + 0.01) {
+        showToast('Payment exceeds the outstanding balance of $' + currentPaymentBalance.toFixed(2) + '.', 'error');
+        return;
+    }
+
+    var remaining = currentPaymentBalance - amount;
+    document.getElementById('confirm-amount').textContent = '$' + amount.toFixed(2);
+    document.getElementById('confirm-method').textContent = paymentType.charAt(0).toUpperCase() + paymentType.slice(1);
+    document.getElementById('confirm-staff').textContent = staffName;
+    document.getElementById('confirm-balance').textContent = '$' + currentPaymentBalance.toFixed(2);
+    document.getElementById('confirm-remaining').textContent = '$' + remaining.toFixed(2);
+
+    pendingPayment = { orderId: orderId, amount: amount, method: paymentType, staff: staffName };
+
+    document.getElementById('payment-modal').style.display = 'none';
+    document.getElementById('payment-confirm-modal').style.display = 'flex';
+}
+
+function processPayment() {
+    if (!pendingPayment) return;
+
+    var formData = new FormData();
+    formData.append('amount', pendingPayment.amount);
+    formData.append('payment_type', pendingPayment.method);
+    formData.append('staff_name', pendingPayment.staff);
+
+    fetch('/orders/' + pendingPayment.orderId + '/add-payment', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+        closePaymentConfirmModal();
+        // Update the row's deposit and balance using data attributes
+        var depositCell = document.querySelector('[data-deposit="' + pendingPayment.orderId + '"]');
+        var balanceCell = document.querySelector('[data-balance="' + pendingPayment.orderId + '"]');
+        if (depositCell) {
+            depositCell.textContent = '$ ' + data.new_deposit.toFixed(2);
+        }
+        if (balanceCell) {
+            balanceCell.textContent = '$ ' + data.new_balance.toFixed(2);
+            balanceCell.style.color = data.new_balance > 0 ? '#e74c3c' : '#27ae60';
+        }
+        showToast('Payment of $' + pendingPayment.amount.toFixed(2) + ' added successfully!', 'success');
+        setTimeout(function() { window.location.reload(); }, 1000);
+    })
+    .catch(error => {
+        showToast('Error adding payment. Please try again.', 'error');
+        console.error('Error:', error);
+    });
+}
+
+// Restore Order Modal
+var currentRestoreOrderId = null;
+
+function openRestoreModal(orderId) {
+    currentRestoreOrderId = orderId;
+    document.getElementById('restore-staff-name').value = '';
+    document.getElementById('restore-modal').style.display = 'flex';
+    setTimeout(function() {
+        document.getElementById('restore-staff-name').focus();
+    }, 100);
+}
+
+function closeRestoreModal() {
+    document.getElementById('restore-modal').style.display = 'none';
+    currentRestoreOrderId = null;
+}
+
+function confirmRestore() {
+    var staffName = document.getElementById('restore-staff-name').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        document.getElementById('restore-staff-name').focus();
+        return;
+    }
+
+    var formData = new FormData();
+    formData.append('staff_name', staffName);
+
+    fetch('/orders/' + currentRestoreOrderId + '/restore', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.error) {
+            showToast(data.error, 'error');
+        } else if (data.success) {
+            showToast('Order #' + currentRestoreOrderId + ' restored successfully. Stock has been deducted.', 'success');
+            closeRestoreModal();
+            setTimeout(function() {
+                window.location.reload();
+            }, 1500);
+        }
+    })
+    .catch(function(err) {
+        showToast('Failed to restore order.', 'error');
+    });
+}
+
+
+
+// Customer Orders Modal
+function openCustomerOrdersModal() {
+    document.getElementById('customer-orders-search').value = '';
+    document.getElementById('customer-orders-results').style.display = 'none';
+    document.getElementById('customer-orders-modal').style.display = 'flex';
+    setTimeout(function() {
+        document.getElementById('customer-orders-search').focus();
+    }, 100);
+}
+
+function closeCustomerOrdersModal() {
+    document.getElementById('customer-orders-modal').style.display = 'none';
+}
+
+// Customer Orders search autocomplete
+var customerOrdersSearch = document.getElementById('customer-orders-search');
+var customerOrdersResults = document.getElementById('customer-orders-results');
+
+var customerOrdersSelectedIndex = -1;
+
+function renderCustomerOrdersResults(matches) {
+    customerOrdersResults.innerHTML = '';
+    customerOrdersSelectedIndex = -1;
+    
+    if (matches.length > 0) {
+        matches.forEach(function(c, index) {
+            var div = document.createElement('div');
+            div.className = 'autocomplete-dropdown-item';
+            div.textContent = c.fullName + ' (' + c.phone + ')';
+            div.addEventListener('click', function() {
+                customerOrdersSearch.value = c.fullName;
+                customerOrdersResults.style.display = 'none';
+                closeCustomerOrdersModal();
+                window.location.href = '/orders?customer_id=' + c.id;
+            });
+            div.addEventListener('mouseenter', function() {
+                customerOrdersResults.querySelectorAll('div').forEach(function(d) { d.classList.remove('active'); });
+                div.classList.add('active');
+                customerOrdersSelectedIndex = index;
+            });
+            div.addEventListener('mouseleave', function() {
+                div.style.background = '';
+            });
+            customerOrdersResults.appendChild(div);
+        });
+        customerOrdersResults.style.display = 'block';
+    } else {
+        customerOrdersResults.style.display = 'none';
+    }
+}
+
+customerOrdersSearch.addEventListener('input', function() {
+    var query = this.value.toLowerCase().trim();
+    var matches = query.length === 0 ? customers : customers.filter(function(c) {
+        return c.fullName.toLowerCase().indexOf(query) !== -1 || c.phone.toLowerCase().indexOf(query) !== -1;
+    });
+    renderCustomerOrdersResults(matches);
+});
+
+customerOrdersSearch.addEventListener('focus', function() {
+    var query = this.value.toLowerCase().trim();
+    var matches = query.length === 0 ? customers : customers.filter(function(c) {
+        return c.fullName.toLowerCase().indexOf(query) !== -1 || c.phone.toLowerCase().indexOf(query) !== -1;
+    });
+    renderCustomerOrdersResults(matches);
+});
+
+customerOrdersSearch.addEventListener('keydown', function(e) {
+    var items = customerOrdersResults.querySelectorAll('div');
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (items.length > 0) {
+            customerOrdersSelectedIndex = Math.min(customerOrdersSelectedIndex + 1, items.length - 1);
+            items.forEach(function(d, i) { d.style.background = i === customerOrdersSelectedIndex ? 'var(--th-bg)' : ''; });
+            items[customerOrdersSelectedIndex].scrollIntoView({ block: 'nearest' });
+        }
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (items.length > 0) {
+            customerOrdersSelectedIndex = Math.max(customerOrdersSelectedIndex - 1, 0);
+            items.forEach(function(d, i) { d.style.background = i === customerOrdersSelectedIndex ? 'var(--th-bg)' : ''; });
+            items[customerOrdersSelectedIndex].scrollIntoView({ block: 'nearest' });
+        }
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (customerOrdersSelectedIndex >= 0 && items[customerOrdersSelectedIndex]) {
+            items[customerOrdersSelectedIndex].click();
+        }
+    } else if (e.key === 'Escape') {
+        customerOrdersResults.style.display = 'none';
+        customerOrdersSelectedIndex = -1;
+    }
+});
+
+// Close modals when clicking outside
+document.addEventListener('click', function(e) {
+    if (e.target.id === 'pickup-modal') {
+        closePickupModal();
+    }
+    if (e.target.id === 'payment-modal') {
+        closePaymentModal();
+    }
+    if (e.target.id === 'payment-confirm-modal') {
+        closePaymentConfirmModal();
+    }
+    if (e.target.id === 'restore-modal') {
+        closeRestoreModal();
+    }
+    if (e.target.id === 'customer-orders-modal') {
+        closeCustomerOrdersModal();
+    }
+});
+
+// Allow Enter key to confirm in modals
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        if (document.getElementById('pickup-modal').style.display === 'flex') {
+            confirmPickup();
+        } else if (document.getElementById('payment-confirm-modal').style.display === 'flex') {
+            processPayment();
+        } else if (document.getElementById('payment-modal').style.display === 'flex') {
+            showPaymentConfirmModal();
+        } else if (document.getElementById('restore-modal').style.display === 'flex') {
+            confirmRestore();
+        }
+    }
+    if (e.key === 'Escape') {
+        closePickupModal();
+        closePaymentModal();
+        closePaymentConfirmModal();
+        closeRestoreModal();
+        closeCustomerOrdersModal();
+    }
+});
+
+// Customer search autocomplete
+var customers = [
+    {% for customer in customers if customer.id %}
+    {id: {{ customer.id }}, firstName: "{{ customer.first_name or '' }}", lastName: "{{ customer.last_name or '' }}", fullName: "{{ customer.full_name }}", phone: "{{ customer.phone }}"}{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+var customerSearchInput = document.getElementById('customer_search');
+var customerSearchHidden = document.getElementById('customer_search_hidden');
+var customerIdHidden = document.getElementById('customer_id_hidden');
+var customerResults = document.getElementById('customer_search_results');
+
+// Pre-fill customer search box if customer_id is set
+if (customerIdHidden && customerIdHidden.value.trim()) {
+    var cid = parseInt(customerIdHidden.value);
+    var found = customers.find(function(c) { return c.id === cid; });
+    if (found) {
+        customerSearchInput.value = found.fullName;
+        customerSearchInput.readOnly = true;
+    }
+}
+
+var customerSearchSelectedIndex = -1;
+
+function renderCustomerSearchResults(matches) {
+    customerResults.innerHTML = '';
+    customerSearchSelectedIndex = -1;
+    
+    if (matches.length > 0) {
+        matches.forEach(function(c, index) {
+            var div = document.createElement('div');
+            div.className = 'autocomplete-dropdown-item';
+            div.textContent = c.fullName + ' (' + c.phone + ')';
+            div.addEventListener('click', function() {
+                customerSearchInput.value = c.fullName;
+                customerSearchHidden.value = c.fullName;
+                customerResults.style.display = 'none';
+                window.location.href = '/orders?customer_id=' + c.id + getSelectedCategories();
+            });
+            div.addEventListener('mouseenter', function() {
+                customerResults.querySelectorAll('div').forEach(function(d) { d.classList.remove('active'); });
+                div.classList.add('active');
+                customerSearchSelectedIndex = index;
+            });
+            div.addEventListener('mouseleave', function() {
+                div.style.background = '';
+            });
+            customerResults.appendChild(div);
+        });
+        customerResults.style.display = 'block';
+    } else {
+        customerResults.style.display = 'none';
+    }
+}
+
+customerSearchInput.addEventListener('input', function() {
+    var query = this.value.toLowerCase().trim();
+    var matches = query.length === 0 ? customers : customers.filter(function(c) {
+        return c.fullName.toLowerCase().indexOf(query) !== -1 || c.phone.toLowerCase().indexOf(query) !== -1;
+    });
+    renderCustomerSearchResults(matches);
+});
+
+customerSearchInput.addEventListener('focus', function() {
+    var query = this.value.toLowerCase().trim();
+    var matches = query.length === 0 ? customers : customers.filter(function(c) {
+        return c.fullName.toLowerCase().indexOf(query) !== -1 || c.phone.toLowerCase().indexOf(query) !== -1;
+    });
+    renderCustomerSearchResults(matches);
+});
+
+customerSearchInput.addEventListener('keydown', function(e) {
+    var items = customerResults.querySelectorAll('div');
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (items.length > 0) {
+            customerSearchSelectedIndex = Math.min(customerSearchSelectedIndex + 1, items.length - 1);
+            items.forEach(function(d, i) { d.style.background = i === customerSearchSelectedIndex ? 'var(--th-bg)' : ''; });
+            items[customerSearchSelectedIndex].scrollIntoView({ block: 'nearest' });
+        }
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (items.length > 0) {
+            customerSearchSelectedIndex = Math.max(customerSearchSelectedIndex - 1, 0);
+            items.forEach(function(d, i) { d.style.background = i === customerSearchSelectedIndex ? 'var(--th-bg)' : ''; });
+            items[customerSearchSelectedIndex].scrollIntoView({ block: 'nearest' });
+        }
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (customerSearchSelectedIndex >= 0 && items[customerSearchSelectedIndex]) {
+            items[customerSearchSelectedIndex].click();
+        }
+    } else if (e.key === 'Escape') {
+        customerResults.style.display = 'none';
+        customerSearchSelectedIndex = -1;
+    }
+});
+
+// Product search autocomplete
+var allProducts = [
+    {% for p in products %}
+    { id: {{ p.id }}, name: "{{ p.name }}" }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+var productSearchInput = document.getElementById('product_search');
+var productSearchHidden = document.getElementById('product_id_hidden');
+var productResults = document.getElementById('product_search_results');
+var productSearchSelectedIndex = -1;
+
+// Pre-fill product search if product_id is set
+{% if product_id %}
+var selectedProduct = allProducts.find(function(p) { return p.id == {{ product_id }}; });
+if (selectedProduct) {
+    productSearchInput.value = selectedProduct.name;
+}
+{% endif %}
+
+function renderProductSearchResults(matches) {
+    productResults.innerHTML = '';
+    productSearchSelectedIndex = -1;
+    
+    if (matches.length > 0) {
+        matches.forEach(function(p, index) {
+            var div = document.createElement('div');
+            div.className = 'autocomplete-dropdown-item';
+            div.textContent = p.name;
+            div.addEventListener('click', function() {
+                productSearchInput.value = p.name;
+                productSearchHidden.value = p.id;
+                productResults.style.display = 'none';
+                applyFilters();
+            });
+            div.addEventListener('mouseenter', function() {
+                productResults.querySelectorAll('div').forEach(function(d) { d.classList.remove('active'); });
+                div.classList.add('active');
+                productSearchSelectedIndex = index;
+            });
+            div.addEventListener('mouseleave', function() {
+                div.style.background = '';
+            });
+            productResults.appendChild(div);
+        });
+        productResults.style.display = 'block';
+    } else {
+        productResults.style.display = 'none';
+    }
+}
+
+productSearchInput.addEventListener('input', function() {
+    var query = this.value.toLowerCase().trim();
+    var matches = query.length === 0 ? allProducts : allProducts.filter(function(p) {
+        return p.name.toLowerCase().indexOf(query) !== -1;
+    });
+    renderProductSearchResults(matches);
+});
+
+productSearchInput.addEventListener('focus', function() {
+    var query = this.value.toLowerCase().trim();
+    var matches = query.length === 0 ? allProducts : allProducts.filter(function(p) {
+        return p.name.toLowerCase().indexOf(query) !== -1;
+    });
+    renderProductSearchResults(matches);
+});
+
+productSearchInput.addEventListener('keydown', function(e) {
+    var items = productResults.querySelectorAll('div');
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (items.length > 0) {
+            productSearchSelectedIndex = Math.min(productSearchSelectedIndex + 1, items.length - 1);
+            items.forEach(function(d, i) { d.style.background = i === productSearchSelectedIndex ? 'var(--th-bg)' : ''; });
+            items[productSearchSelectedIndex].scrollIntoView({ block: 'nearest' });
+        }
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (items.length > 0) {
+            productSearchSelectedIndex = Math.max(productSearchSelectedIndex - 1, 0);
+            items.forEach(function(d, i) { d.style.background = i === productSearchSelectedIndex ? 'var(--th-bg)' : ''; });
+            items[productSearchSelectedIndex].scrollIntoView({ block: 'nearest' });
+        }
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (productSearchSelectedIndex >= 0 && items[productSearchSelectedIndex]) {
+            items[productSearchSelectedIndex].click();
+        }
+    } else if (e.key === 'Escape') {
+        productResults.style.display = 'none';
+        productSearchSelectedIndex = -1;
+    }
+});
+
+// Close search results when clicking outside
+document.addEventListener('click', function(e) {
+    if (!customerSearchInput.contains(e.target) && !customerResults.contains(e.target)) {
+        customerResults.style.display = 'none';
+    }
+    if (!productSearchInput.contains(e.target) && !productResults.contains(e.target)) {
+        productResults.style.display = 'none';
+    }
+    // Close category dropdown when clicking outside
+    var categoryDropdown = document.getElementById('category_dropdown');
+    var categoryWrapper = document.getElementById('category_filter_wrapper');
+    if (categoryDropdown && categoryWrapper && !categoryWrapper.contains(e.target)) {
+        categoryDropdown.style.display = 'none';
+    }
+});
+
+// Prevent dropdown from closing when clicking inside it
+document.getElementById('category_dropdown').addEventListener('click', function(e) {
+    e.stopPropagation();
+});
+
+// Category filter search
+var categoryFilterSearch = document.getElementById('category_filter_search');
+var categoryLabels = document.querySelectorAll('.category_checkbox_label');
+var categorySelectAll = document.getElementById('category_select_all');
+
+categoryFilterSearch.addEventListener('input', function() {
+    var query = this.value.toLowerCase().trim();
+    categoryLabels.forEach(function(label) {
+        var name = label.getAttribute('data-category-name');
+        if (query.length === 0 || name.indexOf(query) !== -1) {
+            label.style.display = 'block';
+        } else {
+            label.style.display = 'none';
+        }
+    });
+});
+
+// Select All checkbox
+categorySelectAll.addEventListener('change', function() {
+    var checkboxes = document.querySelectorAll('.category_checkbox');
+    checkboxes.forEach(function(cb) {
+        cb.checked = this.checked;
+    }.bind(this));
+    applyFilters();
+});
+
+// Apply filters when any category checkbox changes
+document.querySelectorAll('.category_checkbox').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+        applyFilters();
+    });
+});
+
+function getSelectedCategories() {
+    var checked = document.querySelectorAll('.category_checkbox:checked');
+    if (checked.length === 0) return '';
+    var ids = [];
+    checked.forEach(function(cb) { ids.push(cb.value); });
+    return '&category_ids=' + ids.join(',');
+}
+
+function applyFilters() {
+    var customerSearch = customerSearchHidden.value;
+    var customerId = document.getElementById('customer_id_hidden').value;
+    var productId = productSearchHidden.value;
+    var url = '/orders';
+    var params = [];
+    
+    if (customerId.trim()) {
+        params.push('customer_id=' + customerId.trim());
+    } else if (customerSearch.trim()) {
+        params.push('customer_search=' + encodeURIComponent(customerSearch.trim()));
+    }
+    
+    var checked = document.querySelectorAll('.category_checkbox:checked');
+    if (checked.length > 0) {
+        var ids = [];
+        checked.forEach(function(cb) { ids.push(cb.value); });
+        params.push('category_ids=' + ids.join(','));
+    }
+    
+    var subChecked = document.querySelectorAll('.set_checkbox:checked');
+    if (subChecked.length > 0) {
+        var subIds = [];
+        subChecked.forEach(function(cb) { subIds.push(cb.value); });
+        params.push('subcategory_ids=' + subIds.join(','));
+    }
+    
+    if (productId.trim()) {
+        params.push('product_id=' + productId.trim());
+    }
+    
+    if (params.length > 0) {
+        url += '?' + params.join('&');
+    }
+    
+    window.location.href = url;
+}
+
+// Set Name filter search
+var setFilterSearch = document.getElementById('set_filter_search');
+var setLabels = document.querySelectorAll('.set_checkbox_label');
+var setSelectAll = document.getElementById('set_select_all');
+
+setFilterSearch.addEventListener('input', function() {
+    var query = this.value.toLowerCase().trim();
+    setLabels.forEach(function(label) {
+        var name = label.getAttribute('data-set-name');
+        if (query.length === 0 || name.indexOf(query) !== -1) {
+            label.style.display = 'block';
+        } else {
+            label.style.display = 'none';
+        }
+    });
+});
+
+// Set Name Select All checkbox
+setSelectAll.addEventListener('change', function() {
+    var checkboxes = document.querySelectorAll('.set_checkbox');
+    checkboxes.forEach(function(cb) {
+        cb.checked = this.checked;
+    }.bind(this));
+    applyFilters();
+});
+
+// Apply filters when any Set Name checkbox changes
+document.querySelectorAll('.set_checkbox').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+        applyFilters();
+    });
+});
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#category_filter_wrapper')) {
+        document.getElementById('category_dropdown').style.display = 'none';
+    }
+    if (!e.target.closest('#set_filter_wrapper')) {
+        document.getElementById('set_dropdown').style.display = 'none';
+    }
+});
+
+// Order checkbox selection for bulk PDF export
+function updateSelectedCount() {
+    var checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    var count = checkboxes.length;
+    // Update select-all checkbox state
+    var allCheckboxes = document.querySelectorAll('.order-checkbox');
+    var selectAll = document.getElementById('select-all-orders');
+    selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+    selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
+}
+
+function toggleSelectAllOrders() {
+    var selectAll = document.getElementById('select-all-orders');
+    var checkboxes = document.querySelectorAll('.order-checkbox');
+    checkboxes.forEach(function(cb) {
+        cb.checked = selectAll.checked;
+    });
+    updateSelectedCount();
+}
+
+function exportSelectedOrders(format) {
+    format = format || 'a4';
+    var checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    var orderIds = [];
+    checkboxes.forEach(function(cb) {
+        orderIds.push(cb.value);
+    });
+    if (orderIds.length === 0) {
+        showToast('Please select at least one order to export.', 'error');
+        return;
+    }
+    // Build URL with selected order IDs and format
+    var url = '/orders/export-pdf?format=' + format + '&order_ids=' + orderIds.join(',');
+    var customerId = document.getElementById('customer_id_hidden') ? document.getElementById('customer_id_hidden').value : '';
+    if (customerId.trim()) {
+        url += '&customer_id=' + customerId.trim();
+    }
+    // Close dropdown
+    document.getElementById('export-dropdown').style.display = 'none';
+    window.location.href = url;
+}
+
+// Close export dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    var dd = document.getElementById('export-dropdown');
+    if (dd && !e.target.closest('#export-dropdown') && !e.target.closest('[onclick*="export-dropdown"]')) {
+        dd.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.spec
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Sensitive credentials and tokens
+drive_credentials.json
+gmail_credentials.json
+gmail_token.json
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+database/
+
+# Backups
+backups/
+
+# Installer output
+installer/
+
+# PyInstaller
+build/
+dist/
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# Test artifacts
+test_*.png
+test_*.jpg
+test_*.jpeg
+
+# Junie session artifacts
+.junie/sessions/
+.junie/acp-prompt-attachments/

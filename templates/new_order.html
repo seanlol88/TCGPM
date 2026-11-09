@@ -1,0 +1,792 @@
+{% extends "base.html" %}
+
+{% block title %}New Order - {{ store_settings.store_name if store_settings and store_settings.store_name else 'TCG Preorder Manager' }}{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">Create New Order</h1>
+
+{% if error %}
+<div class="flash flash-error">{{ error }}</div>
+{% endif %}
+
+{% if success %}
+<div class="flash flash-success">{{ success }}</div>
+{% endif %}
+
+<div class="card">
+    <h2>Order Details</h2>
+    <form method="post" action="/orders/new">
+        <div style="margin-bottom: 1rem;">
+            <label for="customer-search">Customer</label>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <div style="position: relative; flex: 1;">
+                    <input type="hidden" id="customer_id" name="customer_id" required>
+                    <input type="text" id="customer-search" placeholder="Type to search customers..." autocomplete="off" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
+                    <div id="customer-dropdown" class="autocomplete-dropdown"></div>
+                </div>
+                <button type="button" id="open-customer-modal" class="btn btn-primary" style="white-space: nowrap;">+ New Customer</button>
+            </div>
+        </div>
+
+        <div id="order-items">
+            <h3 style="margin-bottom: 0.75rem;">Products</h3>
+            {% if not products %}
+            <p style="color: var(--text-muted); margin-bottom: 1rem;">No products in inventory. <a href="/inventory">Add products first</a>.</p>
+            {% endif %}
+            {% for i in range(1) %}
+            <div class="item-row" style="display: grid; grid-template-columns: 1fr 50px 60px 90px auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;">
+                <div style="position: relative;">
+                    <label>Product</label>
+                    <input type="hidden" name="product_ids" required>
+                    <input type="text" class="product-search" placeholder="Type to search products..." autocomplete="off" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
+                    <div class="product-dropdown autocomplete-dropdown"></div>
+                </div>
+                <div>
+                    <label>Max</label>
+                    <div class="max-pp-display" style="padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; text-align: center; font-weight: 500; color: var(--text-muted);">-</div>
+                </div>
+                <div>
+                    <label>Qty</label>
+                    <input type="number" name="quantities" required min="1" value="1" style="width: 100%;" oninput="checkStock(this.closest('.item-row'))">
+                </div>
+                <div>
+                    <label>Price</label>
+                    <input type="number" name="prices" required min="0" step="0.01" value="0.00" style="width: 100%;" readonly>
+                </div>
+                <div style="display: flex; align-items: end;">
+                    <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.item-row').remove();">✕</button>
+                </div>
+                <div class="stock-warning" style="grid-column: 1 / -1; color: #e74c3c; font-size: 0.85rem; display: none;"></div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <button type="button" id="add-item" class="btn btn-primary" style="margin: 0.75rem 0;">+ Add Product</button>
+
+        <h2 style="margin-top: 1.5rem;">Finance</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+            <div>
+                <label for="deposit">Deposit ($)</label>
+                <input type="number" id="deposit" name="deposit" min="0" step="0.01" value="0.00" style="width: 100%;">
+            </div>
+            <div>
+                <label for="payment_method">Payment Method</label>
+                <select id="payment_method" name="payment_method" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
+                    <option value="cash">Cash</option>
+                    <option value="eftpos">EFTPOS</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div>
+                <label for="staff_name">Staff Name *</label>
+                <input type="text" id="staff_name" name="staff_name" placeholder="Your name" required style="width: 100%;">
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-success">Confirm Order</button>
+    </form>
+</div>
+
+<!-- New Customer Modal -->
+<div id="customer-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background: var(--bg-card); border-radius: 8px; padding: 2rem; width: 90%; max-width: 450px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <h2 style="margin-top: 0; margin-bottom: 1.5rem;">Add New Customer</h2>
+        <form id="new-customer-form" style="display: flex; flex-direction: column; gap: 0;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                <div>
+                    <label for="new-customer-first">First Name</label>
+                    <input type="text" id="new-customer-first" name="first_name" required style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
+                </div>
+                <div>
+                    <label for="new-customer-last">Last Name</label>
+                    <input type="text" id="new-customer-last" name="last_name" required style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
+                </div>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label for="new-customer-phone">Phone</label>
+                <input type="text" id="new-customer-phone" name="phone" required style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <label for="new-customer-email">Email (optional)</label>
+                <input type="email" id="new-customer-email" name="email" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
+            </div>
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button type="button" id="cancel-customer-modal" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-success">Add Customer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Duplicate Customer Modal -->
+<div id="duplicate-customer-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 10000; justify-content: center; align-items: center;">
+    <div style="background: var(--bg-card); border-radius: 12px; padding: 2rem; width: 90%; max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);">
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: #f39c12; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 2rem; margin-bottom: 0.75rem;">&#9888;</div>
+            <h2 style="margin: 0 0 0.5rem;">Customer Already Exists</h2>
+            <p style="margin: 0; color: var(--text-muted); font-size: 0.95rem;" id="duplicate-message"></p>
+        </div>
+        <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg); border-radius: 8px;">
+            <p style="margin: 0 0 0.25rem;"><strong>Name:</strong> <span id="duplicate-customer-name"></span></p>
+            <p style="margin: 0 0 0.25rem;"><strong>Phone:</strong> <span id="duplicate-customer-phone"></span></p>
+            <p style="margin: 0;"><strong>Email:</strong> <span id="duplicate-customer-email"></span></p>
+        </div>
+        <p style="text-align: center; margin-bottom: 1.5rem; font-size: 0.95rem;">Would you like to create a new order for this customer?</p>
+        <div style="display: flex; gap: 0.5rem; justify-content: center;">
+            <button type="button" id="cancel-duplicate-modal" class="btn btn-secondary">Cancel</button>
+            <button type="button" id="use-existing-customer" class="btn btn-success">Create Order</button>
+        </div>
+    </div>
+</div>
+
+<!-- Order Confirmation Modal -->
+<div id="order-confirm-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 10000; justify-content: center; align-items: center;">
+    <div style="background: var(--bg-card); border-radius: 12px; padding: 2rem; width: 90%; max-width: 600px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-height: 90vh; overflow-y: auto;">
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: #27ae60; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 2rem; margin-bottom: 0.75rem;">&#10003;</div>
+            <h2 style="margin: 0 0 0.25rem; color: #27ae60;">Order Placed Successfully!</h2>
+            <p id="confirm-order-id" style="margin: 0; color: var(--text-muted); font-size: 0.95rem;"></p>
+        </div>
+        <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg); border-radius: 8px;">
+            <p style="margin: 0 0 0.25rem;"><strong>Customer:</strong> <span id="confirm-customer-name"></span></p>
+            <p style="margin: 0 0 0.25rem;"><strong>Phone:</strong> <span id="confirm-customer-phone"></span></p>
+            <p style="margin: 0;"><strong>Email:</strong> <span id="confirm-customer-email"></span></p>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border); text-align: left;">
+                    <th style="padding: 0.5rem 0;">Product</th>
+                    <th style="padding: 0.5rem 0; text-align: center;">Qty</th>
+                    <th style="padding: 0.5rem 0; text-align: right;">Price</th>
+                    <th style="padding: 0.5rem 0; text-align: right;">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody id="confirm-items-body">
+            </tbody>
+        </table>
+        <div style="text-align: right; padding-top: 1rem; border-top: 2px solid var(--border);">
+            <p style="margin: 0 0 0.25rem;"><strong>Total:</strong> $<span id="confirm-total"></span></p>
+            <p style="margin: 0 0 0.25rem;"><strong>Deposit:</strong> $<span id="confirm-deposit"></span></p>
+            <p style="margin: 0;"><strong>Balance:</strong> $<span id="confirm-balance"></span></p>
+        </div>
+        <p id="confirm-staff-row" style="margin: 1rem 0 0; text-align: right; color: var(--text-muted); font-size: 0.85rem; display: none;">Staff: <span id="confirm-staff"></span></p>
+        <div style="text-align: center; margin-top: 1.5rem;">
+            <a href="/" id="confirm-go-dashboard" class="btn btn-secondary" style="text-decoration: none; padding: 0.75rem 2rem;">Go to Dashboard</a>
+            <a href="#" id="confirm-go-order" class="btn btn-primary" style="text-decoration: none; padding: 0.75rem 2rem;">View Order</a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_script %}
+<script>
+    // Customer search autocomplete
+    const allCustomers = [
+        {% for customer in customers if customer.id %}
+        { id: {{ customer.id }}, first_name: "{{ customer.first_name or '' }}", last_name: "{{ customer.last_name or '' }}", full_name: "{{ customer.full_name }}", phone: "{{ customer.phone }}" }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    const customerSearch = document.getElementById('customer-search');
+    const customerDropdown = document.getElementById('customer-dropdown');
+    const customerIdInput = document.getElementById('customer_id');
+
+    let customerSelectedIndex = -1;
+
+    function renderCustomerDropdown(matches) {
+        customerDropdown.innerHTML = '';
+        customerSelectedIndex = -1;
+
+        if (matches.length > 0) {
+            matches.forEach((customer, index) => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-dropdown-item';
+                div.textContent = customer.full_name + ' (' + customer.phone + ')';
+                div.addEventListener('mouseenter', () => {
+                    customerDropdown.querySelectorAll('div').forEach(d => d.classList.remove('active'));
+                    div.classList.add('active');
+                    customerSelectedIndex = index;
+                });
+                div.addEventListener('mouseleave', () => {
+                    div.classList.remove('active');
+                });
+                div.addEventListener('click', () => {
+                    customerSearch.value = customer.full_name + ' (' + customer.phone + ')';
+                    customerIdInput.value = customer.id;
+                    customerDropdown.style.display = 'none';
+                    customerSelectedIndex = -1;
+                });
+                customerDropdown.appendChild(div);
+            });
+            customerDropdown.style.display = 'block';
+        } else {
+            customerDropdown.style.display = 'none';
+        }
+    }
+
+    customerSearch.addEventListener('input', function() {
+        const query = this.value.toLowerCase().trim();
+        const matches = query.length === 0 ? allCustomers : allCustomers.filter(c =>
+            c.full_name.toLowerCase().includes(query) || c.phone.toLowerCase().includes(query)
+        );
+        renderCustomerDropdown(matches);
+    });
+
+    customerSearch.addEventListener('focus', function() {
+        const query = this.value.toLowerCase().trim();
+        const matches = query.length === 0 ? allCustomers : allCustomers.filter(c =>
+            c.full_name.toLowerCase().includes(query) || c.phone.toLowerCase().includes(query)
+        );
+        renderCustomerDropdown(matches);
+    });
+
+    customerSearch.addEventListener('keydown', function(e) {
+        const items = customerDropdown.querySelectorAll('div');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (items.length > 0) {
+                customerSelectedIndex = Math.min(customerSelectedIndex + 1, items.length - 1);
+                items.forEach((d, i) => d.style.background = i === customerSelectedIndex ? 'rgba(128,128,128,0.1)' : 'transparent');
+                items[customerSelectedIndex].scrollIntoView({ block: 'nearest' });
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (items.length > 0) {
+                customerSelectedIndex = Math.max(customerSelectedIndex - 1, 0);
+                items.forEach((d, i) => d.style.background = i === customerSelectedIndex ? 'rgba(128,128,128,0.1)' : 'transparent');
+                items[customerSelectedIndex].scrollIntoView({ block: 'nearest' });
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (customerSelectedIndex >= 0 && items[customerSelectedIndex]) {
+                items[customerSelectedIndex].click();
+            }
+        } else if (e.key === 'Escape') {
+            customerDropdown.style.display = 'none';
+            customerSelectedIndex = -1;
+        }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!customerSearch.contains(e.target) && !customerDropdown.contains(e.target)) {
+            customerDropdown.style.display = 'none';
+        }
+    });
+
+    // New Customer Modal
+    const customerModal = document.getElementById('customer-modal');
+    const openCustomerModalBtn = document.getElementById('open-customer-modal');
+    const cancelCustomerModalBtn = document.getElementById('cancel-customer-modal');
+    const newCustomerForm = document.getElementById('new-customer-form');
+
+    openCustomerModalBtn.addEventListener('click', function() {
+        customerModal.style.display = 'flex';
+        document.getElementById('new-customer-first').focus();
+    });
+
+    cancelCustomerModalBtn.addEventListener('click', function() {
+        customerModal.style.display = 'none';
+        newCustomerForm.reset();
+    });
+
+    // Close modal when clicking outside the content
+    customerModal.addEventListener('click', function(e) {
+        if (e.target === customerModal) {
+            customerModal.style.display = 'none';
+            newCustomerForm.reset();
+        }
+    });
+
+    // Duplicate customer handling
+    const duplicateModal = document.getElementById('duplicate-customer-modal');
+    const cancelDuplicateBtn = document.getElementById('cancel-duplicate-modal');
+    const useExistingBtn = document.getElementById('use-existing-customer');
+    let pendingDuplicateCustomer = null;
+
+    cancelDuplicateBtn.addEventListener('click', function() {
+        duplicateModal.style.display = 'none';
+        pendingDuplicateCustomer = null;
+        newCustomerForm.reset();
+    });
+
+    duplicateModal.addEventListener('click', function(e) {
+        if (e.target === duplicateModal) {
+            duplicateModal.style.display = 'none';
+            pendingDuplicateCustomer = null;
+            newCustomerForm.reset();
+        }
+    });
+
+    useExistingBtn.addEventListener('click', function() {
+        if (pendingDuplicateCustomer) {
+            // Close the new customer modal
+            customerModal.style.display = 'none';
+            newCustomerForm.reset();
+            // Select the existing customer in the search box
+            customerSearch.value = pendingDuplicateCustomer.full_name + ' (' + pendingDuplicateCustomer.phone + ')';
+            customerIdInput.value = pendingDuplicateCustomer.id;
+            // Close the duplicate modal
+            duplicateModal.style.display = 'none';
+            pendingDuplicateCustomer = null;
+            // Show success toast
+            showToast('Selected ' + pendingDuplicateCustomer.full_name + ' for this order.', 'success');
+        }
+    });
+
+    // Submit new customer form
+    newCustomerForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData();
+        formData.append('first_name', document.getElementById('new-customer-first').value);
+        formData.append('last_name', document.getElementById('new-customer-last').value);
+        formData.append('phone', document.getElementById('new-customer-phone').value);
+        const email = document.getElementById('new-customer-email').value;
+        if (email) {
+            formData.append('email', email);
+        }
+
+        fetch('/customers/add-json', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Handle duplicate customer error
+            if (data.error) {
+                if (data.duplicate && data.customer) {
+                    // Show the duplicate customer modal
+                    pendingDuplicateCustomer = data.customer;
+                    document.getElementById('duplicate-message').textContent = data.error;
+                    document.getElementById('duplicate-customer-name').textContent = data.customer.full_name;
+                    document.getElementById('duplicate-customer-phone').textContent = data.customer.phone;
+                    document.getElementById('duplicate-customer-email').textContent = data.customer.email || '-';
+                    // Close the new customer modal
+                    customerModal.style.display = 'none';
+                    newCustomerForm.reset();
+                    // Show the duplicate modal
+                    duplicateModal.style.display = 'flex';
+                } else {
+                    showToast(data.error, 'error');
+                }
+                return;
+            }
+            // Add the new customer to the autocomplete list
+            allCustomers.push({ id: data.id, first_name: data.first_name, last_name: data.last_name, full_name: data.full_name, phone: data.phone });
+            // Select the new customer in the search box
+            customerSearch.value = data.full_name + ' (' + data.phone + ')';
+            customerIdInput.value = data.id;
+            // Close the modal
+            customerModal.style.display = 'none';
+            newCustomerForm.reset();
+            // Show success toast
+            showToast(data.full_name + ' added successfully!', 'success');
+        })
+        .catch(error => {
+            showToast('Error adding customer. Please try again.', 'error');
+            console.error('Error:', error);
+        });
+    });
+
+    // Product search autocomplete
+    const allProducts = [
+        {% for product in products %}
+        { id: {{ product.id }}, name: "{{ product.name }}", category: "{{ product.category.name if product.category else 'No Category' }}", subcategory: "{{ product.subcategory.name if product.subcategory else '' }}", stock: {{ product.quantity }}, maxPerOrder: {{ product.max_per_order if product.max_per_order else 'null' }}, price: {{ product.price }}, releaseDate: "{{ product.release_date.strftime('%Y-%m-%d') if product.release_date else '' }}" }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    // Product max per order data
+    const productMaxPerOrder = {
+        {% for product in products %}
+        {{ product.id }}: {{ product.max_per_order if product.max_per_order else 'null' }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    };
+
+    // Track persistent toasts for max per order violations
+    let activeMaxToasts = {};
+
+    // Calculate total quantity for a product across all rows
+    function getTotalQtyForProduct(productId) {
+        let total = 0;
+        document.querySelectorAll('.item-row').forEach(function(r) {
+            const hidden = r.querySelector('input[name="product_ids"]');
+            const qtyInput = r.querySelector('input[name="quantities"]');
+            if (hidden && hidden.value && hidden.value == productId) {
+                total += parseInt(qtyInput.value) || 0;
+            }
+        });
+        return total;
+    }
+
+    // Check stock and max per order for a row (checks total across all rows)
+    function checkStock(row) {
+        const qtyInput = row.querySelector('input[name="quantities"]');
+        const warningEl = row.querySelector('.stock-warning');
+        if (!qtyInput || !warningEl) return;
+
+        // Get product ID from hidden input
+        const hiddenInput = row.querySelector('input[name="product_ids"]');
+        if (!hiddenInput || !hiddenInput.value) {
+            warningEl.style.display = 'none';
+            qtyInput.style.color = '';
+            qtyInput.style.fontWeight = '';
+            return;
+        }
+
+        const productId = hiddenInput.value;
+        const product = allProducts.find(p => p.id == productId);
+        if (!product) {
+            warningEl.style.display = 'none';
+            qtyInput.style.color = '';
+            qtyInput.style.fontWeight = '';
+            return;
+        }
+
+        // Calculate total quantity for this product across all rows
+        const totalQty = getTotalQtyForProduct(productId);
+
+        // Check max per order limit against total
+        const maxPerOrder = productMaxPerOrder[productId];
+        if (maxPerOrder && totalQty > maxPerOrder) {
+            warningEl.textContent = '⚠ Max per order exceeded! Max: ' + maxPerOrder + ', Total: ' + totalQty;
+            warningEl.style.display = 'block';
+            qtyInput.style.color = '#e74c3c';
+            qtyInput.style.fontWeight = 'bold';
+            // Show persistent toast
+            const rowKey = row.getAttribute('data-row-key') || Math.random().toString(36).substr(2, 9);
+            row.setAttribute('data-row-key', rowKey);
+            if (!activeMaxToasts[rowKey]) {
+                activeMaxToasts[rowKey] = showToast('⚠ Max per order exceeded! Max: ' + maxPerOrder + ', Total across all rows: ' + totalQty, 'error', 0);
+            }
+        } else {
+            // Clear max per order styling and toast
+            const rowKey = row.getAttribute('data-row-key');
+            if (rowKey && activeMaxToasts[rowKey]) {
+                const toastEl = activeMaxToasts[rowKey];
+                if (toastEl && toastEl.parentNode) {
+                    toastEl.parentNode.removeChild(toastEl);
+                }
+                delete activeMaxToasts[rowKey];
+            }
+            // Check stock against total
+            if (totalQty > product.stock) {
+                warningEl.textContent = '⚠ Not enough stock! Available: ' + product.stock + ', Total: ' + totalQty;
+                warningEl.style.display = 'block';
+                qtyInput.style.color = '#e74c3c';
+                qtyInput.style.fontWeight = 'bold';
+            } else {
+                warningEl.style.display = 'none';
+                qtyInput.style.color = '';
+                qtyInput.style.fontWeight = '';
+            }
+        }
+    }
+
+    function setupProductSearch(input, dropdown, hiddenInput) {
+        let selectedIndex = -1;
+
+        function renderProductDropdown(matches) {
+            dropdown.innerHTML = '';
+            selectedIndex = -1;
+
+            if (matches.length > 0) {
+                matches.forEach((product, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'autocomplete-dropdown-item';
+                    let text = product.name;
+                    if (product.category) text += ' [' + product.category + ']';
+                    if (product.subcategory) text += ' - ' + product.subcategory;
+                    if (product.releaseDate) text += ' (Release: ' + product.releaseDate + ')';
+                    text += ' (Stock: ' + product.stock + ', $' + product.price.toFixed(2) + ')';
+                    div.textContent = text;
+                    div.addEventListener('mouseenter', () => {
+                        dropdown.querySelectorAll('div').forEach(d => d.classList.remove('active'));
+                        div.classList.add('active');
+                        selectedIndex = index;
+                    });
+                    div.addEventListener('mouseleave', () => {
+                        div.classList.remove('active');
+                    });
+                    div.addEventListener('click', () => {
+                        input.value = product.name;
+                        hiddenInput.value = product.id;
+                        const row = input.closest('.item-row');
+                        row.querySelector('input[name="prices"]').value = product.price.toFixed(2);
+                        const maxPpDisplay = row.querySelector('.max-pp-display');
+                        if (maxPpDisplay) {
+                            if (product.maxPerOrder) {
+                                maxPpDisplay.textContent = product.maxPerOrder;
+                                maxPpDisplay.style.color = 'var(--text)';
+                            } else {
+                                maxPpDisplay.textContent = '∞';
+                                maxPpDisplay.style.color = 'var(--text-muted)';
+                            }
+                        }
+                        dropdown.style.display = 'none';
+                        selectedIndex = -1;
+                    });
+                    dropdown.appendChild(div);
+                });
+                dropdown.style.display = 'block';
+            } else {
+                dropdown.style.display = 'none';
+            }
+        }
+
+        input.addEventListener('input', function() {
+            const query = this.value.toLowerCase().trim();
+            const matches = query.length === 0 ? allProducts : allProducts.filter(p =>
+                p.name.toLowerCase().includes(query) ||
+                p.category.toLowerCase().includes(query) ||
+                (p.subcategory && p.subcategory.toLowerCase().includes(query))
+            );
+            renderProductDropdown(matches);
+        });
+
+        input.addEventListener('focus', function() {
+            const query = this.value.toLowerCase().trim();
+            const matches = query.length === 0 ? allProducts : allProducts.filter(p =>
+                p.name.toLowerCase().includes(query) ||
+                p.category.toLowerCase().includes(query) ||
+                (p.subcategory && p.subcategory.toLowerCase().includes(query))
+            );
+            renderProductDropdown(matches);
+        });
+
+        input.addEventListener('keydown', function(e) {
+            const items = dropdown.querySelectorAll('div');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (items.length > 0) {
+                    selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                    items.forEach((d, i) => d.style.background = i === selectedIndex ? 'rgba(128,128,128,0.1)' : 'transparent');
+                    items[selectedIndex].scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (items.length > 0) {
+                    selectedIndex = Math.max(selectedIndex - 1, 0);
+                    items.forEach((d, i) => d.style.background = i === selectedIndex ? 'rgba(128,128,128,0.1)' : 'transparent');
+                    items[selectedIndex].scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (selectedIndex >= 0 && items[selectedIndex]) {
+                    items[selectedIndex].click();
+                }
+            } else if (e.key === 'Escape') {
+                dropdown.style.display = 'none';
+                selectedIndex = -1;
+            }
+        });
+    }
+
+    // Setup product search for all existing rows
+    document.querySelectorAll('.product-search').forEach((input, index) => {
+        const row = input.closest('.item-row');
+        const dropdown = row.querySelector('.product-dropdown');
+        const hiddenInput = row.querySelector('input[name="product_ids"]');
+        setupProductSearch(input, dropdown, hiddenInput);
+    });
+
+    // Add new item row
+    document.getElementById('add-item').addEventListener('click', function() {
+        const container = document.getElementById('order-items');
+        const row = document.createElement('div');
+        row.className = 'item-row';
+        row.style.cssText = 'display: grid; grid-template-columns: 1fr 50px 60px 90px auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;';
+        row.innerHTML = `
+            <div style="position: relative;">
+                <label>Product</label>
+                <input type="hidden" name="product_ids" required>
+                <input type="text" class="product-search" placeholder="Type to search products..." autocomplete="off" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
+                <div class="product-dropdown autocomplete-dropdown"></div>
+            </div>
+            <div>
+                <label>Max</label>
+                <div class="max-pp-display" style="padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; text-align: center; font-weight: 500; color: var(--text-muted);">-</div>
+            </div>
+            <div>
+                <label>Qty</label>
+                <input type="number" name="quantities" required min="1" value="1" style="width: 100%;" oninput="checkStock(this.closest('.item-row'))">
+            </div>
+            <div>
+                <label>Price</label>
+                <input type="number" name="prices" required min="0" step="0.01" value="0.00" style="width: 100%;" readonly>
+            </div>
+            <div style="display: flex; align-items: end;">
+                <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.item-row').remove();">✕</button>
+            </div>
+            <div class="stock-warning" style="grid-column: 1 / -1; color: #e74c3c; font-size: 0.85rem; display: none;"></div>
+        `;
+        container.appendChild(row);
+        // Setup product search for the new row
+        const input = row.querySelector('.product-search');
+        const dropdown = row.querySelector('.product-dropdown');
+        const hiddenInput = row.querySelector('input[name="product_ids"]');
+        setupProductSearch(input, dropdown, hiddenInput);
+        // Focus the new search input
+        input.focus();
+    });
+
+    // Close product dropdowns when clicking outside
+    document.addEventListener('click', function(e) {
+        document.querySelectorAll('.product-search').forEach(function(input) {
+            var row = input.closest('.item-row');
+            if (!row) return;
+            var dd = row.querySelector('.product-dropdown');
+            if (!dd) return;
+            if (!input.contains(e.target) && !dd.contains(e.target)) {
+                dd.style.display = 'none';
+            }
+        });
+    });
+
+    // Order form submission via AJAX
+    (function() {
+        var form = document.querySelector('form[action="/orders/new"]');
+        if (!form) return;
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            // Validate customer is selected
+            var customerId = document.getElementById('customer_id').value;
+            if (!customerId) {
+                showToast('Please select a customer.', 'error');
+                return;
+            }
+
+            // Validate all product rows have a product selected
+            var itemRows = document.querySelectorAll('.item-row');
+            var hasValidProduct = false;
+            itemRows.forEach(function(row) {
+                var hiddenInput = row.querySelector('input[name="product_ids"]');
+                if (hiddenInput && hiddenInput.value && hiddenInput.value.trim() !== '') {
+                    hasValidProduct = true;
+                }
+            });
+            if (!hasValidProduct) {
+                showToast('Please select at least one product.', 'error');
+                return;
+            }
+
+            // Collect form data
+            var formData = new FormData(form);
+
+            fetch('/orders/new-json', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showToast(data.error, 'error');
+                    return;
+                }
+                // Populate and show the confirmation modal
+                document.getElementById('confirm-order-id').textContent = 'Order #' + data.order_id;
+                document.getElementById('confirm-customer-name').textContent = data.customer_name;
+                document.getElementById('confirm-customer-phone').textContent = data.customer_phone;
+                document.getElementById('confirm-customer-email').textContent = data.customer_email || '-';
+                document.getElementById('confirm-total').textContent = data.total.toFixed(2);
+                document.getElementById('confirm-deposit').textContent = data.deposit.toFixed(2);
+                document.getElementById('confirm-balance').textContent = data.balance.toFixed(2);
+
+                // Update the links to point to the new order
+                document.getElementById('confirm-go-dashboard').href = '/';
+                document.getElementById('confirm-go-order').href = '/orders/' + data.order_id;
+
+                // Build items table
+                var tbody = document.getElementById('confirm-items-body');
+                tbody.innerHTML = '';
+                data.items.forEach(function(item) {
+                    var tr = document.createElement('tr');
+                    tr.style.borderBottom = '1px solid var(--border-light)';
+                    tr.innerHTML =
+                        '<td style="padding: 0.5rem 0;">' + item.name + '</td>' +
+                        '<td style="padding: 0.5rem 0; text-align: center;">' + item.quantity + '</td>' +
+                        '<td style="padding: 0.5rem 0; text-align: right;">$' + item.unit_price.toFixed(2) + '</td>' +
+                        '<td style="padding: 0.5rem 0; text-align: right;">$' + item.subtotal.toFixed(2) + '</td>';
+                    tbody.appendChild(tr);
+                });
+
+                // Show staff name if present
+                if (data.staff_name) {
+                    var staffRow = document.getElementById('confirm-staff-row');
+                    var staffEl = document.getElementById('confirm-staff');
+                    staffEl.textContent = data.staff_name;
+                    staffRow.style.display = 'block';
+                }
+
+                // Show the modal
+                var modal = document.getElementById('order-confirm-modal');
+                modal.style.display = 'flex';
+            })
+            .catch(function(error) {
+                showToast('Error creating order. Please try again.', 'error');
+                console.error('Error:', error);
+            });
+        });
+    })();
+
+    // Unsaved changes warning
+    let hasUnsavedChanges = false;
+
+    function checkForChanges() {
+        const customerId = document.getElementById('customer_id');
+        if (customerId && customerId.value) return true;
+        const rows = document.querySelectorAll('.item-row');
+        for (const row of rows) {
+            const hiddenInput = row.querySelector('input[name="product_ids"]');
+            if (hiddenInput && hiddenInput.value) return true;
+        }
+        const depositInput = document.querySelector('input[name="deposit"]');
+        if (depositInput && depositInput.value && parseFloat(depositInput.value) !== 0) return true;
+        const staffInput = document.querySelector('input[name="staff_name"]');
+        if (staffInput && staffInput.value.trim()) return true;
+        return false;
+    }
+
+    const newOrderForm = document.querySelector('form[action="/orders/new"]');
+    if (newOrderForm) {
+        newOrderForm.addEventListener('input', () => { hasUnsavedChanges = checkForChanges(); });
+        newOrderForm.addEventListener('change', () => { hasUnsavedChanges = checkForChanges(); });
+    }
+
+    // Track customer selection from autocomplete (customerSearch already declared above)
+    if (customerSearch) {
+        customerSearch.addEventListener('input', () => { hasUnsavedChanges = checkForChanges(); });
+    }
+
+    window.addEventListener('beforeunload', function(e) {
+        if (hasUnsavedChanges) {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+    });
+
+    if (newOrderForm) {
+        newOrderForm.addEventListener('submit', function() { hasUnsavedChanges = false; });
+    }
+
+    // Warn when clicking navigation links
+    document.querySelectorAll('a[href]').forEach(link => {
+        const href = link.getAttribute('href');
+        if (href && !href.startsWith('/orders/new') && !href.startsWith('#') && !href.startsWith('javascript:')) {
+            link.addEventListener('click', function(event) {
+                if (hasUnsavedChanges) {
+                    if (!confirm('You have unsaved changes to this order. Are you sure you want to leave?')) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return false;
+                    }
+                }
+                hasUnsavedChanges = false;
+            });
+        }
+    });
+</script>
+{% endblock %}

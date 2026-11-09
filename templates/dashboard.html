@@ -1,0 +1,1265 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - {{ store_settings.store_name if store_settings and store_settings.store_name else 'TCG Preorder Manager' }}{% endblock %}
+
+{% block extra_style %}
+/* Profit Dashboard Styles */
+.profit-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+@media (max-width: 900px) {
+    .profit-summary { grid-template-columns: repeat(2, 1fr); }
+}
+.profit-summary-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+}
+.profit-summary-card .label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem;
+}
+.profit-summary-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+.profit-summary-card .value.revenue { color: #3498db; }
+.profit-summary-card .value.cost { color: #e67e22; }
+.profit-summary-card .value.profit { color: #27ae60; }
+.profit-summary-card .value.profit.negative { color: #e74c3c; }
+.profit-summary-card .value.items { color: #9b59b6; }
+.profit-summary-card .sub {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+.category-profit-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.chart-row {
+    display: grid;
+    grid-template-columns: 150px 1fr auto;
+    align-items: center;
+    gap: 1rem;
+}
+.chart-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.chart-bar-container {
+    position: relative;
+    height: 32px;
+    background: var(--bg);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+}
+.chart-bar-revenue {
+    height: 100%;
+    background: rgba(52, 152, 219, 0.3);
+    transition: width 0.3s ease;
+}
+.chart-bar-profit {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.3s ease;
+}
+.chart-bar-profit.positive { background: rgba(39, 174, 96, 0.7); }
+.chart-bar-profit.negative { background: rgba(231, 76, 60, 0.7); }
+.chart-values {
+    text-align: right;
+    min-width: 120px;
+}
+.chart-values .profit-amount {
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+.chart-values .profit-amount.positive { color: #27ae60; }
+.chart-values .profit-amount.negative { color: #e74c3c; }
+.chart-values .chart-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.15rem;
+}
+.hottest-item {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.35rem;
+    padding-left: 0.25rem;
+}
+.hottest-item .fire { font-size: 0.9rem; }
+.hottest-item .item-name { font-weight: 600; color: var(--text); }
+.hottest-item .item-count { color: #e67e22; font-weight: 600; }
+.no-profit-data {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 2rem;
+}
+/* Monthly Tracker Styles */
+.monthly-tracker {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+@media (max-width: 700px) {
+    .monthly-tracker { grid-template-columns: 1fr; }
+}
+.month-card {
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    text-align: center;
+    position: relative;
+    transition: border-color 0.2s, transform 0.15s;
+}
+.month-card.best-month {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 1px #f59e0b;
+}
+.month-card.best-month::after {
+    content: '👑 Highest';
+    position: absolute;
+    top: -10px;
+    right: 10px;
+    background: #f59e0b;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+}
+.month-label {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+}
+.month-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.month-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.82rem;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border);
+}
+.month-stat:last-child {
+    border-bottom: none;
+}
+.month-stat .stat-label {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.month-stat .stat-value {
+    font-weight: 700;
+}
+.month-stat .stat-value.revenue { color: #3498db; }
+.month-stat .stat-value.profit { color: #27ae60; }
+.month-stat .stat-value.profit.negative { color: #e74c3c; }
+.month-stat .stat-value.orders { color: #9b59b6; }
+.month-stat .stat-value.items { color: #e67e22; }
+.no-monthly-data {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.9rem;
+}
+/* Financial Year Ranking Styles */
+.fy-ranking {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+}
+.fy-ranking-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+.fy-ranking-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+}
+.fy-ranking-period {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: var(--bg);
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+}
+.fy-rank-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 100px 100px 80px;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: border-color 0.2s, transform 0.15s;
+}
+.fy-rank-row:hover {
+    border-color: var(--primary);
+    transform: translateX(2px);
+}
+.fy-rank-row.rank-1 {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.05);
+}
+.fy-rank-row.rank-2 {
+    border-color: #9ca3af;
+    background: rgba(156, 163, 175, 0.05);
+}
+.fy-rank-row.rank-3 {
+    border-color: #cd7f32;
+    background: rgba(205, 127, 50, 0.05);
+}
+.fy-rank-number {
+    font-size: 1.2rem;
+    font-weight: 800;
+    text-align: center;
+    color: var(--text-muted);
+}
+.fy-rank-row.rank-1 .fy-rank-number { color: #f59e0b; }
+.fy-rank-row.rank-2 .fy-rank-number { color: #9ca3af; }
+.fy-rank-row.rank-3 .fy-rank-number { color: #cd7f32; }
+.fy-rank-category {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+}
+.fy-rank-bar-container {
+    position: relative;
+    height: 20px;
+    background: var(--card-bg);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.fy-rank-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+.fy-rank-row.rank-1 .fy-rank-bar { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.fy-rank-row.rank-2 .fy-rank-bar { background: linear-gradient(90deg, #9ca3af, #d1d5db); }
+.fy-rank-row.rank-3 .fy-rank-bar { background: linear-gradient(90deg, #cd7f32, #d4a574); }
+.fy-rank-row:not(.rank-1):not(.rank-2):not(.rank-3) .fy-rank-bar { background: linear-gradient(90deg, #3498db, #5dade2); }
+.fy-rank-items {
+    text-align: right;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #27ae60;
+}
+.fy-rank-revenue {
+    text-align: right;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #3498db;
+}
+.fy-rank-orders {
+    text-align: right;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.fy-no-data {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 1.5rem;
+    font-size: 0.9rem;
+}
+{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">Dashboard</h1>
+
+<div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem;">
+    <a href="/orders/new" class="btn btn-primary">+ New Order</a>
+    <a href="/orders" class="btn btn-secondary">View Orders</a>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2 style="margin: 0;">Upcoming Releases</h2>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--text-muted); cursor: pointer;">
+                <input type="checkbox" id="show-stock-toggle" onchange="toggleStockColumns()"> Show Stock
+            </label>
+            <a href="/upcoming-releases" class="btn btn-secondary btn-sm">View All</a>
+        </div>
+    </div>
+    {% if upcoming_releases %}
+    <table>
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Set Name</th>
+                <th>Release Date</th>
+                <th style="text-align: right;">Days Until</th>
+                <th class="stock-col" style="text-align: right; display: none;">Stock</th>
+                <th style="text-align: right;">Available</th>
+                <th style="text-align: right;">Price</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in upcoming_releases %}
+            {% set days_away = (product.release_date - date_type.today()).days %}
+            {% set reserved = reserved_stock.get(product.id, 0) %}
+            {% set available = product.quantity - reserved %}
+            <tr>
+                <td style="font-weight: 600;">{{ product.name }}</td>
+                <td>{{ product.category.name if product.category else '-' }}</td>
+                <td>{{ product.subcategory.name if product.subcategory else '-' }}</td>
+                <td>{{ product.release_date.strftime('%Y-%m-%d') }}</td>
+                <td style="text-align: right;">
+                    {% if days_away < 0 %}
+                    <span style="color: var(--text-muted);">{{ abs(days_away) }} ago</span>
+                    {% elif days_away == 0 %}
+                    <span class="status-badge status-picked">Today!</span>
+                    {% elif days_away == 1 %}
+                    <span class="status-badge status-partial">Tomorrow</span>
+                    {% else %}
+                    {{ days_away }}
+                    {% endif %}
+                </td>
+                <td class="stock-col" style="text-align: right; display: none;">{{ product.quantity }}</td>
+                <td style="text-align: right;">
+                    {% if available <= 0 %}
+                    <span style="color: #e74c3c; font-weight: 600;">{{ available }}</span>
+                    {% elif available < reserved %}
+                    <span style="color: #e67e22; font-weight: 600;">{{ available }}</span>
+                    {% else %}
+                    <span style="font-weight: 600;">{{ available }}</span>
+                    {% endif %}
+                </td>
+                <td style="text-align: right; font-weight: 600;">$ {{ "%.2f" % product.price }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted);">No release dates set yet. <a href="/inventory">Add products with release dates</a>.</p>
+    {% endif %}
+</div>
+
+<script>
+function toggleStockColumns() {
+    var show = document.getElementById('show-stock-toggle').checked;
+    var stockCols = document.querySelectorAll('.stock-col');
+    stockCols.forEach(function(col) {
+        col.style.display = show ? '' : 'none';
+    });
+}
+</script>
+
+<div class="card" style="margin-top: 1.5rem;">
+    <h2>Actual Profit (from items picked up)</h2>
+    
+    {% set has_data = category_profit_data | selectattr("items_sold", "greaterthan", 0) | list | length > 0 %}
+    
+    {% if has_data %}
+    <!-- 3-Month Tracker -->
+    <h3 style="margin-bottom: 0.75rem; font-size: 1rem; color: var(--text-muted);">Last 3 Months Sales Tracker</h3>
+    <div class="monthly-tracker">
+        {% for month in month_data %}
+        <div class="month-card {% if month.index == best_month_idx and month.revenue > 0 %}best-month{% endif %}">
+            <div class="month-label">{{ month.label }}</div>
+            <div class="month-stats">
+                <div class="month-stat">
+                    <span class="stat-label">Revenue</span>
+                    <span class="stat-value revenue">$ {{ "%.2f" % month.revenue }}</span>
+                </div>
+                <div class="month-stat">
+                    <span class="stat-label">Profit</span>
+                    <span class="stat-value profit {% if month.profit < 0 %}negative{% endif %}">$ {{ "%.2f" % month.profit }}</span>
+                </div>
+                <div class="month-stat">
+                    <span class="stat-label">Orders</span>
+                    <span class="stat-value orders">{{ month.orders }}</span>
+                </div>
+                <div class="month-stat">
+                    <span class="stat-label">Items Sold</span>
+                    <span class="stat-value items">{{ month.items_sold }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% set has_any_monthly = month_data | selectattr("revenue", "greaterthan", 0) | list | length > 0 %}
+    {% if not has_any_monthly %}
+    <p class="no-monthly-data">No pickup data in the last 3 months yet. Monthly stats will appear as items are picked up.</p>
+    {% endif %}
+    
+    <!-- Financial Year Category Ranking -->
+    <div class="fy-ranking-header">
+        <div class="fy-ranking-title">🏆 Financial Year Category Ranking</div>
+        <div class="fy-ranking-period">FY {{ fy_start_year }}–{{ fy_start_year + 1 }} (Jul {{ fy_start_year }} – Jun {{ fy_start_year + 1 }})</div>
+    </div>
+    {% set fy_with_data = fy_category_ranking | selectattr("items_sold", "greaterthan", 0) | list %}
+    {% if fy_with_data %}
+    <div class="fy-ranking">
+        {% set max_fy_items = fy_with_data | map(attribute="items_sold") | max %}
+        {% for cat in fy_with_data %}
+        <div class="fy-rank-row rank-{{ cat.rank }}">
+            <div class="fy-rank-number">
+                {% if cat.rank == 1 %}🥇{% elif cat.rank == 2 %}🥈{% elif cat.rank == 3 %}🥉{% else %}{{ cat.rank }}{% endif %}
+            </div>
+            <div class="fy-rank-category">{{ cat.name }}</div>
+            <div class="fy-rank-bar-container">
+                <div class="fy-rank-bar" style="width: {{ (cat.items_sold / max_fy_items * 100) if max_fy_items > 0 else 0 }}%;"></div>
+            </div>
+            <div class="fy-rank-items">{{ cat.items_sold }} sold</div>
+            <div>
+                <div class="fy-rank-revenue">$ {{ "%.2f" % cat.revenue }}</div>
+                <div class="fy-rank-orders">{{ cat.orders }} orders</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="fy-no-data">No pickups in the current financial year yet. Rankings will appear as items are picked up.</p>
+    {% endif %}
+    
+    <!-- Summary Cards -->
+    <div class="profit-summary">
+        <div class="profit-summary-card">
+            <div class="label">Total Revenue</div>
+            <div class="value revenue">$ {{ "%.2f" % grand_revenue }}</div>
+            <div class="sub">from {{ grand_items_sold }} items sold</div>
+        </div>
+        <div class="profit-summary-card">
+            <div class="label">Total Cost</div>
+            <div class="value cost">$ {{ "%.2f" % grand_cost }}</div>
+            <div class="sub">cost of goods sold</div>
+        </div>
+        <div class="profit-summary-card">
+            <div class="label">Net Profit</div>
+            <div class="value profit {% if grand_profit < 0 %}negative{% endif %}">$ {{ "%.2f" % grand_profit }}</div>
+            <div class="sub">{{ "%.1f" % grand_margin }}% margin</div>
+        </div>
+        <div class="profit-summary-card">
+            <div class="label">Items Sold</div>
+            <div class="value items">{{ grand_items_sold }}</div>
+            <div class="sub">picked up items</div>
+        </div>
+        <div class="profit-summary-card" style="border: 2px solid var(--border);">
+            <div class="label">Unpicked Items</div>
+            <div class="value" style="color: #e67e22;">{{ unpicked_items_count }}</div>
+            <div class="sub">awaiting pickup</div>
+        </div>
+        <div class="profit-summary-card" style="border: 2px solid var(--border);">
+            <div class="label">Unpicked Cost</div>
+            <div class="value" style="color: #e67e22;">$ {{ "%.2f" % total_unpicked_cost }}</div>
+            <div class="sub">cost of unpicked stock</div>
+        </div>
+        <div class="profit-summary-card" style="border: 2px solid var(--border);">
+            <div class="label">Unpicked Revenue</div>
+            <div class="value" style="color: #3498db;">$ {{ "%.2f" % total_unpicked_revenue }}</div>
+            <div class="sub">potential revenue</div>
+        </div>
+        <div class="profit-summary-card" style="border: 2px solid var(--border);">
+            <div class="label">Unpicked Profit</div>
+            <div class="value" style="color: {% if total_unpicked_revenue - total_unpicked_cost >= 0 %}#27ae60{% else %}#e74c3c{% endif %};">$ {{ "%.2f" % (total_unpicked_revenue - total_unpicked_cost) }}</div>
+            <div class="sub">potential profit</div>
+        </div>
+    </div>
+    
+    <!-- Category Bar Chart -->
+    <div class="category-profit-chart">
+        {% set max_revenue = category_profit_data | map(attribute="total_revenue") | max | default(1) %}
+        {% if max_revenue == 0 %}{% set max_revenue = 1 %}{% endif %}
+        {% for cat in category_profit_data %}
+            {% if cat.items_sold > 0 %}
+            <div class="chart-row">
+                <div class="chart-label" title="{{ cat.name }}">{{ cat.name }}</div>
+                <div class="chart-bar-container">
+                    <!-- Revenue bar (background) -->
+                    <div class="chart-bar-revenue" style="width: {{ (cat.total_revenue / max_revenue * 100) | round(1) }}%;"></div>
+                    <!-- Profit bar (overlay) -->
+                    {% set profit_pct = (cat.total_profit / max_revenue * 100) if max_revenue > 0 else 0 %}
+                    {% set abs_profit_pct = profit_pct | abs %}
+                    <div class="chart-bar-profit {% if cat.total_profit >= 0 %}positive{% else %}negative{% endif %}" style="width: {{ abs_profit_pct | round(1) }}%;"></div>
+                </div>
+                <div class="chart-values">
+                    <div class="profit-amount {% if cat.total_profit >= 0 %}positive{% else %}negative{% endif %}">
+                        $ {{ "%.2f" % cat.total_profit }}
+                    </div>
+                    <div class="chart-meta">
+                        {{ cat.items_sold }} sold · {{ "%.1f" % cat.margin }}% margin
+                    </div>
+                    {% if cat.hottest_item %}
+                    <div class="hottest-item">
+                        <span class="fire">🔥</span>
+                        <span class="item-name">{{ cat.hottest_item }}</span>
+                        <span class="item-count">({{ cat.hottest_count }})</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="no-profit-data">No items have been picked up yet. Profit will appear here as items are marked as picked up.</p>
+    {% endif %}
+</div>
+
+<div class="card" style="margin-top: 1.5rem;">
+    <h2>Recent Orders</h2>
+    {% if recent_orders %}
+    <table>
+        <thead>
+            <tr>
+                <th>Order #</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th style="text-align: right;">Total</th>
+                <th style="text-align: right;">Deposit</th>
+                <th style="text-align: right;">Balance</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in recent_orders %}
+            {% set picked, total = order.pickup_progress %}
+            <tr class="order-row" data-order-id="{{ order.id }}" style="{% if order.is_fully_picked_up %}opacity: 0.65;{% endif %}">
+                <td>{{ order.id }}</td>
+                <td><a href="/orders/{{ order.id }}" class="customer-badge">{{ order.customer.full_name }}</a></td>
+                <td>{{ order.order_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td style="text-align: right; font-weight: 600;">$ {{ "%.2f" % order.total }}</td>
+                <td style="text-align: right;" data-deposit="{{ order.id }}">$ {{ "%.2f" % order.deposit }}</td>
+                <td style="text-align: right; font-weight: 600; color: {% if order.balance > 0 %}#e74c3c{% else %}#27ae60{% endif %};" data-balance="{{ order.id }}">$ {{ "%.2f" % order.balance }}</td>
+                <td>
+                    {% if order.is_fully_picked_up %}
+                    <span class="status-badge status-picked">✓ {{ picked }}/{{ total }}</span>
+                    {% elif picked > 0 %}
+                    <span class="status-badge status-partial">⏳ {{ picked }}/{{ total }}</span>
+                    {% else %}
+                    <span class="status-badge status-pending">Pending</span>
+                    {% endif %}
+                </td>
+                <td style="display: flex; gap: 0.5rem;">
+                    <a href="/orders/{{ order.id }}" class="btn btn-primary btn-sm">View</a>
+                    <button type="button" class="btn btn-sm btn-success" onclick="openPickupModal({{ order.id }})" title="Manage item pickup">
+                        📦 Pickup
+                    </button>
+                    <button type="button" class="btn btn-sm btn-info" onclick="openPaymentModal({{ order.id }}, {{ order.balance }}, '{{ order.customer.full_name }}')" title="Add payment">
+                        💰 Pay
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted);">No orders yet. <a href="/orders/new">Create your first order</a>.</p>
+    {% endif %}
+</div>
+
+<style>
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.status-picked {
+    background: #27ae60;
+    color: white;
+}
+.status-pending {
+    background: #f39c12;
+    color: white;
+}
+.status-partial {
+    background: #3498db;
+    color: white;
+}
+.btn-success {
+    background: #27ae60;
+    color: white;
+    border: none;
+}
+.btn-success:hover {
+    background: #219a52;
+}
+.btn-warning {
+    background: #f39c12;
+    color: white;
+    border: none;
+}
+.btn-warning:hover {
+    background: #e67e22;
+}
+.btn-info {
+    background: #3498db;
+    color: white;
+    border: none;
+}
+.btn-info:hover {
+    background: #2980b9;
+}
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal-box {
+    background: var(--bg-card);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 2rem;
+    max-width: 450px;
+    width: 90%;
+    box-shadow: var(--card-shadow);
+}
+.modal-box h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+}
+.modal-box .form-group {
+    margin-bottom: 1rem;
+}
+.modal-box label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+.modal-box input, .modal-box select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.95rem;
+    background: var(--input-bg);
+    color: var(--text);
+    box-sizing: border-box;
+}
+.modal-box .modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+.modal-box .info-text {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+</style>
+
+<!-- Item Pickup Modal -->
+<div id="pickup-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 550px;">
+        <h3 id="pickup-modal-title">Manage Pickup</h3>
+        <p class="info-text" id="pickup-modal-info">Click each item's progress bar to cycle through pickup units, or use the quick buttons below.</p>
+        <!-- Order Summary Section -->
+        <div id="pickup-order-summary" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: var(--th-bg); border-radius: 6px;">
+            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--text-muted);">Order Items</h4>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 0.5rem;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <th style="text-align: left; padding: 0.3rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Product</th>
+                        <th style="text-align: center; padding: 0.3rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Qty</th>
+                        <th style="text-align: right; padding: 0.3rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Price</th>
+                        <th style="text-align: right; padding: 0.3rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody id="pickup-items-summary-list"></tbody>
+            </table>
+            <div style="border-top: 1px solid var(--border); padding-top: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; font-size: 0.9rem;">
+                    <span>Total:</span><strong id="pickup-summary-total"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; font-size: 0.9rem;">
+                    <span>Deposit Paid:</span><strong id="pickup-summary-deposit" style="color: #27ae60;"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.95rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
+                    <span>Balance Owing:</span><strong id="pickup-summary-balance" style="color: #e74c3c;"></strong>
+                </div>
+            </div>
+        </div>
+        <div id="pickup-items-list" style="max-height: 300px; overflow-y: auto; margin-bottom: 1rem;"></div>
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-sm btn-info" onclick="pickupMarkAll()" title="Mark all items as fully picked up">✓ Mark All</button>
+            <button type="button" class="btn btn-sm btn-warning" onclick="pickupResetAll()" title="Reset all pickup progress">↩ Reset All</button>
+        </div>
+        <div class="form-group">
+            <label for="pickup-staff-name">Staff Name *</label>
+            <input type="text" id="pickup-staff-name" placeholder="Your name" required>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closePickupModal()">Cancel</button>
+            <button type="button" class="btn btn-success" onclick="confirmPickup()">Update Pickup</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.pickup-item-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    transition: background 0.15s;
+}
+.pickup-item-row:hover {
+    background: var(--th-bg);
+}
+.pickup-item-row .item-name {
+    flex: 1;
+    font-size: 0.95rem;
+}
+.pickup-item-row .item-qty {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+.pickup-progress-bar {
+    cursor: pointer;
+    width: 140px;
+    text-align: center;
+    padding: 0.25rem;
+}
+.pickup-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text);
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+.pickup-btn:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+.pickup-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+.pickup-progress-bar .pickup-bar-track {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 0.25rem;
+}
+.pickup-progress-bar .pickup-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.2s;
+}
+</style>
+
+<!-- Payment Modal -->
+<div id="payment-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <h3>Add Payment</h3>
+        <p class="info-text" id="payment-modal-info"></p>
+        <div class="form-group">
+            <label for="payment-amount">Amount ($)</label>
+            <input type="number" id="payment-amount" step="0.01" min="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+            <label for="payment-type">Payment Type</label>
+            <select id="payment-type">
+                <option value="cash">Cash</option>
+                <option value="eftpos">EFTPOS</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="payment-staff-name">Staff Name *</label>
+            <input type="text" id="payment-staff-name" placeholder="Your name" required>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closePaymentModal()">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="showPaymentConfirmModal()">Continue</button>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Confirmation Modal -->
+<div id="payment-confirm-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button type="button" class="modal-close" onclick="closePaymentConfirmModal()">&times;</button>
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <span style="font-size: 2rem;">💰</span>
+            <h3 style="margin: 0;">Confirm Payment</h3>
+        </div>
+        <p style="margin-bottom: 1rem;">Please confirm the payment details below before processing.</p>
+        <div style="margin-bottom: 1rem; padding: 0.75rem; background: var(--th-bg); border-radius: 6px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                <span>Payment Amount:</span><strong id="confirm-amount" style="font-size: 1.2rem; color: #27ae60;"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                <span>Payment Method:</span><strong id="confirm-method"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
+                <span>Staff Name:</span><strong id="confirm-staff"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>Current Balance:</span><strong id="confirm-balance"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Remaining After Payment:</span><strong id="confirm-remaining"></strong>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="backToPaymentModal()">Back</button>
+            <button type="button" class="btn btn-success" onclick="processPayment()">Confirm Payment</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Item Pickup Modal
+var currentPickupOrderId = null;
+var currentPickupItems = [];
+
+// Order items data embedded from server
+var orderItemsData = {
+    {% for order in recent_orders %}
+    {{ order.id }}: [
+        {% for item in order.items %}
+        {id: {{ item.id }}, product_name: "{{ item.product.name if item.product else 'Unknown' }}", quantity: {{ item.quantity }}, picked_up_quantity: {{ item.picked_up_quantity or 0 }}}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ],
+    {% endfor %}
+};
+
+function openPickupModal(orderId) {
+    currentPickupOrderId = orderId;
+    var items = orderItemsData[orderId] || [];
+    currentPickupItems = items;
+    
+    document.getElementById('pickup-modal-title').textContent = 'Manage Pickup — Order #' + orderId;
+    
+    var list = document.getElementById('pickup-items-list');
+    list.innerHTML = '';
+    
+    if (items.length === 0) {
+        list.innerHTML = '<p style="color: var(--text-muted);">No items in this order.</p>';
+    } else {
+        items.forEach(function(item) {
+            var row = document.createElement('div');
+            row.className = 'pickup-item-row';
+            
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'item-name';
+            nameSpan.textContent = item.product_name;
+            
+            var qtySpan = document.createElement('span');
+            qtySpan.className = 'item-qty';
+            qtySpan.textContent = '(qty: ' + item.quantity + ')';
+            
+            var picked = item.picked_up_quantity || 0;
+            var total = item.quantity;
+            
+            var controlsDiv = document.createElement('div');
+            controlsDiv.className = 'pickup-controls';
+            
+            var minusBtn = document.createElement('button');
+            minusBtn.type = 'button';
+            minusBtn.className = 'pickup-btn';
+            minusBtn.textContent = '-';
+            minusBtn.title = 'Decrease pickup';
+            minusBtn.onclick = function() { pickupAdjust(item.id, -1); };
+            
+            var progressBar = document.createElement('div');
+            progressBar.className = 'pickup-progress-bar';
+            progressBar.setAttribute('data-item-id', item.id);
+            progressBar.setAttribute('data-picked', picked);
+            progressBar.setAttribute('data-total', total);
+            
+            var icon, color;
+            if (picked === total && total > 0) { icon = '✓'; color = '#27ae60'; }
+            else if (picked > 0) { icon = '⏳'; color = '#3498db'; }
+            else { icon = '○'; color = '#95a5a6'; }
+            
+            progressBar.innerHTML = 
+                '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+                    '<span style="font-size: 1rem; color: ' + color + '">' + icon + '</span>' +
+                    '<span style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">' + picked + '/' + total + '</span>' +
+                '</div>' +
+                '<div class="pickup-bar-track"><div class="pickup-bar-fill" style="width: ' + (total > 0 ? (picked / total * 100) : 0) + '%; background: ' + color + '"></div></div>';
+            
+            var plusBtn = document.createElement('button');
+            plusBtn.type = 'button';
+            plusBtn.className = 'pickup-btn';
+            plusBtn.textContent = '+';
+            plusBtn.title = 'Increase pickup';
+            plusBtn.onclick = function() { pickupAdjust(item.id, 1); };
+            
+            controlsDiv.appendChild(minusBtn);
+            controlsDiv.appendChild(progressBar);
+            controlsDiv.appendChild(plusBtn);
+            
+            row.appendChild(nameSpan);
+            row.appendChild(qtySpan);
+            row.appendChild(controlsDiv);
+            list.appendChild(row);
+        });
+    }
+    
+    // Fetch order summary to display items and finance info
+    fetch('/orders/' + orderId + '/summary-json')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                populatePickupSummary(data);
+            }
+        })
+        .catch(function(error) {
+            console.error('Error fetching order summary:', error);
+        });
+    
+    document.getElementById('pickup-staff-name').value = '';
+    document.getElementById('pickup-modal').style.display = 'flex';
+    setTimeout(function() {
+        document.getElementById('pickup-staff-name').focus();
+    }, 100);
+}
+
+// Adjust pickup by delta (+1 or -1) for a specific item
+function pickupAdjust(itemId, delta) {
+    var el = document.querySelector('#pickup-items-list .pickup-progress-bar[data-item-id="' + itemId + '"]');
+    if (!el) return;
+    var picked = parseInt(el.getAttribute('data-picked')) || 0;
+    var total = parseInt(el.getAttribute('data-total')) || 0;
+    if (total === 0) return;
+    picked = Math.max(0, Math.min(total, picked + delta));
+    el.setAttribute('data-picked', picked);
+    
+    var icon, color;
+    if (picked === total && total > 0) { icon = '✓'; color = '#27ae60'; }
+    else if (picked > 0) { icon = '⏳'; color = '#3498db'; }
+    else { icon = '○'; color = '#95a5a6'; }
+    
+    el.innerHTML = 
+        '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+            '<span style="font-size: 1rem; color: ' + color + '">' + icon + '</span>' +
+            '<span style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">' + picked + '/' + total + '</span>' +
+        '</div>' +
+        '<div class="pickup-bar-track"><div class="pickup-bar-fill" style="width: ' + (total > 0 ? (picked / total * 100) : 0) + '%; background: ' + color + '"></div></div>';
+}
+
+// Mark all items as fully picked up
+function pickupMarkAll() {
+    document.querySelectorAll('#pickup-items-list .pickup-progress-bar').forEach(function(el) {
+        var total = parseInt(el.getAttribute('data-total')) || 0;
+        el.setAttribute('data-picked', total);
+        var icon = '✓', color = '#27ae60';
+        el.innerHTML = 
+            '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+                '<span style="font-size: 1rem; color: ' + color + '">' + icon + '</span>' +
+                '<span style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">' + total + '/' + total + '</span>' +
+            '</div>' +
+            '<div class="pickup-bar-track"><div class="pickup-bar-fill" style="width: 100%; background: ' + color + '"></div></div>';
+    });
+    showToast('All items marked as picked up.', 'info');
+}
+
+// Reset all pickup progress
+function pickupResetAll() {
+    document.querySelectorAll('#pickup-items-list .pickup-progress-bar').forEach(function(el) {
+        var total = parseInt(el.getAttribute('data-total')) || 0;
+        el.setAttribute('data-picked', 0);
+        var icon = '○', color = '#95a5a6';
+        el.innerHTML = 
+            '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+                '<span style="font-size: 1rem; color: ' + color + '">' + icon + '</span>' +
+                '<span style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">0/' + total + '</span>' +
+            '</div>' +
+            '<div class="pickup-bar-track"><div class="pickup-bar-fill" style="width: 0%; background: ' + color + '"></div></div>';
+    });
+    showToast('All pickup progress reset.', 'info');
+}
+
+function populatePickupSummary(data) {
+    var summaryDiv = document.getElementById('pickup-order-summary');
+    var itemsList = document.getElementById('pickup-items-summary-list');
+    itemsList.innerHTML = '';
+    data.items.forEach(function(item) {
+        var row = '<tr style="border-bottom: 1px solid var(--border);">' +
+            '<td style="padding: 0.3rem 0.5rem; font-size: 0.9rem;">' + item.product_name + '</td>' +
+            '<td style="padding: 0.3rem 0.5rem; font-size: 0.9rem; text-align: center;">' + item.quantity + '</td>' +
+            '<td style="padding: 0.3rem 0.5rem; font-size: 0.9rem; text-align: right;">$ ' + item.unit_price.toFixed(2) + '</td>' +
+            '<td style="padding: 0.3rem 0.5rem; font-size: 0.9rem; text-align: right;">$ ' + item.subtotal.toFixed(2) + '</td>' +
+            '</tr>';
+        itemsList.innerHTML += row;
+    });
+    document.getElementById('pickup-summary-total').textContent = '$ ' + data.total.toFixed(2);
+    document.getElementById('pickup-summary-deposit').textContent = '$ ' + data.deposit.toFixed(2);
+    document.getElementById('pickup-summary-balance').textContent = '$ ' + data.balance.toFixed(2);
+    summaryDiv.style.display = 'block';
+}
+
+function clearPickupSummary() {
+    document.getElementById('pickup-order-summary').style.display = 'none';
+    document.getElementById('pickup-items-summary-list').innerHTML = '';
+}
+
+function closePickupModal() {
+    document.getElementById('pickup-modal').style.display = 'none';
+    currentPickupOrderId = null;
+}
+
+function confirmPickup() {
+    var staffName = document.getElementById('pickup-staff-name').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        document.getElementById('pickup-staff-name').focus();
+        return;
+    }
+    
+    var formData = new FormData();
+    formData.append('staff_name', staffName);
+    
+    // Read pickup quantity from progress bars
+    var bars = document.querySelectorAll('#pickup-items-list .pickup-progress-bar[data-item-id]');
+    bars.forEach(function(el) {
+        var itemId = el.getAttribute('data-item-id');
+        var picked = parseInt(el.getAttribute('data-picked')) || 0;
+        formData.append('item_' + itemId, picked);
+    });
+    
+    fetch('/orders/' + currentPickupOrderId + '/update-item-pickup', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showToast(data.error, 'error', 30000);
+            return;
+        }
+        closePickupModal();
+        
+        var row = document.querySelector('.order-row[data-order-id="' + currentPickupOrderId + '"]');
+        if (row) {
+            row.style.opacity = data.is_fully_picked_up ? '0.65' : '1';
+            var badge = row.querySelector('.status-badge');
+            if (data.is_fully_picked_up) {
+                badge.className = 'status-badge status-picked';
+                badge.textContent = '✓ ' + data.pickup_progress;
+            } else if (data.pickup_progress.split('/')[0] > 0) {
+                badge.className = 'status-badge status-partial';
+                badge.textContent = '⏳ ' + data.pickup_progress;
+            } else {
+                badge.className = 'status-badge status-pending';
+                badge.textContent = 'Pending';
+            }
+        }
+        
+        if (data.items) {
+            data.items.forEach(function(item) {
+                var localItem = currentPickupItems.find(function(li) { return li.id === item.item_id; });
+                if (localItem) {
+                    localItem.is_fully_picked_up = item.is_fully_picked_up;
+                }
+            });
+            if (!orderItemsData[currentPickupOrderId]) {
+                orderItemsData[currentPickupOrderId] = [];
+            }
+            orderItemsData[currentPickupOrderId] = currentPickupItems;
+        }
+        
+        var msg = 'Pickup updated for Order #' + currentPickupOrderId + '! (' + data.pickup_progress + ')';
+        showToast(msg, 'success');
+        setTimeout(function() { window.location.reload(); }, 1000);
+    })
+    .catch(error => {
+        showToast('Error updating pickup status. Please try again.', 'error');
+        console.error('Error:', error);
+    });
+}
+
+// Payment Modal
+var currentPaymentOrderId = null;
+var currentPaymentBalance = 0;
+var pendingPayment = null;
+
+function openPaymentModal(orderId, balance, customerName) {
+    currentPaymentOrderId = orderId;
+    currentPaymentBalance = balance;
+    document.getElementById('payment-modal-info').textContent = 'Customer: ' + customerName + ' | Balance: $' + balance.toFixed(2);
+    document.getElementById('payment-amount').value = '';
+    document.getElementById('payment-type').value = 'cash';
+    document.getElementById('payment-staff-name').value = '';
+    document.getElementById('payment-modal').style.display = 'flex';
+    setTimeout(function() {
+        document.getElementById('payment-amount').focus();
+    }, 100);
+}
+
+function closePaymentModal() {
+    document.getElementById('payment-modal').style.display = 'none';
+    currentPaymentOrderId = null;
+    currentPaymentBalance = 0;
+}
+
+function closePaymentConfirmModal() {
+    document.getElementById('payment-confirm-modal').style.display = 'none';
+}
+
+function backToPaymentModal() {
+    document.getElementById('payment-confirm-modal').style.display = 'none';
+    document.getElementById('payment-modal').style.display = 'flex';
+}
+
+function showPaymentConfirmModal() {
+    var amount = parseFloat(document.getElementById('payment-amount').value);
+    var paymentType = document.getElementById('payment-type').value;
+    var staffName = document.getElementById('payment-staff-name').value.trim();
+    
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        document.getElementById('payment-staff-name').focus();
+        return;
+    }
+    if (!amount || amount <= 0) {
+        showToast('Please enter a valid payment amount.', 'error');
+        return;
+    }
+    // Client-side overpayment check
+    if (amount > currentPaymentBalance + 0.01) {
+        showToast('Payment exceeds the outstanding balance of $' + currentPaymentBalance.toFixed(2) + '.', 'error');
+        return;
+    }
+
+    var remaining = currentPaymentBalance - amount;
+    document.getElementById('confirm-amount').textContent = '$' + amount.toFixed(2);
+    document.getElementById('confirm-method').textContent = paymentType.charAt(0).toUpperCase() + paymentType.slice(1);
+    document.getElementById('confirm-staff').textContent = staffName;
+    document.getElementById('confirm-balance').textContent = '$' + currentPaymentBalance.toFixed(2);
+    document.getElementById('confirm-remaining').textContent = '$' + remaining.toFixed(2);
+
+    pendingPayment = { orderId: currentPaymentOrderId, amount: amount, method: paymentType, staff: staffName };
+
+    document.getElementById('payment-modal').style.display = 'none';
+    document.getElementById('payment-confirm-modal').style.display = 'flex';
+}
+
+function processPayment() {
+    if (!pendingPayment) return;
+
+    var formData = new FormData();
+    formData.append('amount', pendingPayment.amount);
+    formData.append('payment_type', pendingPayment.method);
+    formData.append('staff_name', pendingPayment.staff);
+
+    fetch('/orders/' + pendingPayment.orderId + '/add-payment', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+        closePaymentConfirmModal();
+        var depositCell = document.querySelector('[data-deposit="' + pendingPayment.orderId + '"]');
+        var balanceCell = document.querySelector('[data-balance="' + pendingPayment.orderId + '"]');
+        if (depositCell) {
+            depositCell.textContent = '$ ' + data.new_deposit.toFixed(2);
+        }
+        if (balanceCell) {
+            balanceCell.textContent = '$ ' + data.new_balance.toFixed(2);
+            balanceCell.style.color = data.new_balance > 0 ? '#e74c3c' : '#27ae60';
+        }
+        showToast('Payment of $' + pendingPayment.amount.toFixed(2) + ' added successfully!', 'success');
+        setTimeout(function() { window.location.reload(); }, 1000);
+    })
+    .catch(error => {
+        showToast('Error adding payment. Please try again.', 'error');
+        console.error('Error:', error);
+    });
+}
+
+// Close modals when clicking outside
+document.addEventListener('click', function(e) {
+    if (e.target.id === 'pickup-modal') {
+        closePickupModal();
+    }
+    if (e.target.id === 'payment-modal') {
+        closePaymentModal();
+    }
+    if (e.target.id === 'payment-confirm-modal') {
+        closePaymentConfirmModal();
+    }
+});
+
+// Allow Enter key to confirm in modals
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        if (document.getElementById('pickup-modal').style.display === 'flex') {
+            confirmPickup();
+        } else if (document.getElementById('payment-confirm-modal').style.display === 'flex') {
+            processPayment();
+        } else if (document.getElementById('payment-modal').style.display === 'flex') {
+            showPaymentConfirmModal();
+        }
+    }
+    if (e.key === 'Escape') {
+        closePickupModal();
+        closePaymentModal();
+        closePaymentConfirmModal();
+    }
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Log - {{ store_settings.store_name if store_settings and store_settings.store_name else 'TCG Preorder Manager' }}{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">Audit Log</h1>
+
+<div class="card">
+    <h2>All Changes</h2>
+
+    <form method="get" style="margin-bottom: 1.5rem;">
+        <div style="display: flex; gap: 0.75rem; align-items: flex-end;">
+            <div style="flex: 1;">
+                <label for="search">Search</label>
+                <input type="text" id="search" name="search" value="{{ search }}" placeholder="Search by customer, staff, action, or entity type..." style="width: 100%;">
+            </div>
+            <button type="submit" class="btn btn-primary">Search</button>
+            {% if search %}
+            <a href="/audit-log" class="btn btn-secondary">Clear</a>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if logs %}
+    <table>
+        <thead>
+            <tr>
+                <th>Date/Time (Melbourne)</th>
+                <th>Type</th>
+                <th>Entity</th>
+                <th>Customer</th>
+                <th>Action</th>
+                <th>Staff</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') if log.timestamp else '-' }}</td>
+                <td>
+                    {% if log.entity_type == 'order' %}
+                    <span style="background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem;">Order</span>
+                    {% elif log.entity_type == 'product' %}
+                    <span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem;">Product</span>
+                    {% elif log.entity_type == 'customer' %}
+                    <span style="background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem;">Customer</span>
+                    {% elif log.entity_type == 'category' %}
+                    <span style="background: #ede9fe; color: #5b21b6; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem;">Category</span>
+                    {% elif log.entity_type == 'subcategory' %}
+                    <span style="background: #fce7f3; color: #9d174d; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem;">Set Name</span>
+                    {% elif log.entity_type == 'settings' %}
+                    <span style="background: #e5e7eb; color: #374151; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem;">Settings</span>
+                    {% else %}
+                    <span style="background: #f3f4f6; color: #374151; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem;">{{ log.entity_type }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.entity_type == 'order' %}
+                    <a href="/orders/{{ log.entity_id }}">#{{ log.entity_id }}</a>
+                    {% elif log.entity_type == 'product' %}
+                    <a href="/inventory">Product #{{ log.entity_id }}</a>
+                    {% elif log.entity_type == 'customer' %}
+                    <a href="/customers">Customer #{{ log.entity_id }}</a>
+                    {% elif log.entity_type == 'category' %}
+                    <a href="/categories">Category #{{ log.entity_id }}</a>
+                    {% elif log.entity_type == 'subcategory' %}
+                    <a href="/subcategories">subcategory #{{ log.entity_id }}</a>
+                    {% elif log.entity_type == 'settings' %}
+                    <a href="/settings">Settings</a>
+                    {% else %}
+                    #{{ log.entity_id }}
+                    {% endif %}
+                </td>
+                <td>{{ log.customer.full_name if log.customer else '-' }}</td>
+                <td>{{ log.action }}</td>
+                <td>{{ log.staff_name or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted);">
+        {% if search %}
+        No audit logs match "{{ search }}". Try a different search term.
+        {% else %}
+        No audit logs yet. Logs will appear when any changes are made to orders, products, customers, categories, subcategories, or settings.
+        {% endif %}
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

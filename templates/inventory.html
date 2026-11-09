@@ -1,0 +1,923 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory - {{ store_settings.store_name if store_settings and store_settings.store_name else 'TCG Preorder Manager' }}{% endblock %}
+
+{% block extra_style %}
+.modal-box .form-group {
+    margin-bottom: 1rem;
+}
+.modal-box .form-group > label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+.modal-box input, .modal-box select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.95rem;
+    background: var(--input-bg);
+    color: var(--text);
+    box-sizing: border-box;
+}
+{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">Inventory</h1>
+
+<div style="margin-bottom: 1.5rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    <button type="button" class="btn btn-success" onclick="openAddModal()">+ Add Product</button>
+    <span id="bulk-actions" style="display: none; align-items: center; gap: 0.5rem;">
+        <span id="selected-count" style="font-size: 0.9rem; color: var(--text-muted);"></span>
+        <button type="button" class="btn btn-sm btn-primary" onclick="openBulkCategoryModal()">Change Category</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="openBulkSubcategoryModal()">Add Set Name</button>
+        <button type="button" class="btn btn-sm btn-danger" onclick="openBulkDeleteModal()">Delete Selected</button>
+    </span>
+</div>
+
+<div class="card" style="padding: 1rem 1.5rem;">
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <input type="text" id="inventory-search" placeholder="Search products..." value="{{ search }}" style="flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.95rem; background: var(--input-bg); color: var(--text);">
+        <button type="button" class="btn btn-primary btn-sm" onclick="searchInventory()">Search</button>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="clearInventorySearch()">Clear</button>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Current Stock</h2>
+    {% if products %}
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 40px;"><input type="checkbox" id="select-all-products" onchange="toggleSelectAllProducts()" title="Select All"></th>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Set Name</th>
+                <th>Release Date</th>
+                <th>Quantity</th>
+                <th>Cost</th>
+                <th>Price</th>
+                <th>Max/Order</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in products %}
+            <tr>
+                <td><input type="checkbox" class="product-checkbox" value="{{ product.id }}" onchange="updateSelectedCount()"></td>
+                <td>{{ product.id }}</td>
+                <td>{{ product.name }}</td>
+                <td>{{ product.category.name if product.category else '-' }}</td>
+                <td>{{ product.subcategory.name if product.subcategory else '-' }}</td>
+                <td>{{ product.release_date.strftime('%Y-%m-%d') if product.release_date else '-' }}</td>
+                <td>{{ product.quantity }}</td>
+                <td>$ {{ "%.2f" % (product.cost_price or 0) }}</td>
+                <td>$ {{ "%.2f" % product.price }}</td>
+                <td>{{ product.max_per_order if product.max_per_order else '∞' }}</td>
+                <td>
+                    <button type="button" class="btn btn-primary btn-sm" onclick='openEditModal({{ product.id }}, "{{ product.name | replace('"', '\\"') }}", {{ product.quantity }}, {{ product.price }}, {{ product.cost_price or 0.0 }}, {{ product.max_per_order | tojson }}, "{{ product.release_date.strftime('%Y-%m-%d') if product.release_date else '' }}", {{ product.category_id or '' }}, {{ product.subcategory_id or '' }})'>Edit</button>
+                    <button type="button" class="icon-btn icon-btn-danger" onclick="confirmDelete({{ product.id }}, '{{ product.name | replace("'", "\\'") }}')" title="Delete">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    {% if search %}
+    <p style="color: var(--text-muted);">No products match your search. Try a different term or <a href="/inventory">clear the search</a>.</p>
+    {% else %}
+    <p style="color: var(--text-muted);">No products yet. Click "+ Add Product" to add your first product.</p>
+    {% endif %}
+    {% endif %}
+</div>
+
+<!-- Add Product Modal -->
+<div id="add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseAddModal()">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeAddModal()">&times;</button>
+        <h2>Add Product</h2>
+        <form id="add-product-form" onsubmit="submitAddProduct(event)">
+            <div class="form-group">
+                <label for="add-name">Product Name *</label>
+                <input type="text" id="add-name" name="name" required placeholder="e.g. MTG Booster Pack">
+            </div>
+            <div class="form-group">
+                <label for="add-quantity">Quantity *</label>
+                <input type="number" id="add-quantity" name="quantity" required min="0" value="0">
+            </div>
+            <div class="form-group">
+                <label for="add-cost_price">Cost Price ($) *</label>
+                <input type="number" id="add-cost_price" name="cost_price" required min="0" step="0.01" value="0.00">
+            </div>
+            <div class="form-group">
+                <label for="add-price">Selling Price ($) *</label>
+                <input type="number" id="add-price" name="price" required min="0" step="0.01" value="0.00">
+            </div>
+            <div class="form-group">
+                <label for="add-max_per_order">Max Per Order (optional)</label>
+                <input type="number" id="add-max_per_order" name="max_per_order" min="1" placeholder="Unlimited">
+            </div>
+            <div class="form-group">
+                <label for="add-release_date">Release Date</label>
+                <input type="date" id="add-release_date" name="release_date">
+            </div>
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <label for="add-category_id">Category</label>
+                    <button type="button" class="btn btn-sm btn-success" onclick="openAddCategoryModal('add')">+ Add Category</button>
+                </div>
+                <select id="add-category_id" name="category_id" onchange="filtersubcategories('add')">
+                    {% for category in categories %}
+                    <option value="{{ category.id }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <label for="add-subcategory_id">Set Name</label>
+                    <button type="button" class="btn btn-sm btn-success" onclick="openAddSubcategoryModal('add')">+ Add Set Name</button>
+                </div>
+                <select id="add-subcategory_id" name="subcategory_id">
+                    {% for subcategory in subcategories %}
+                    <option value="{{ subcategory.id }}" data-category-id="{{ subcategory.category_id if subcategory.category_id else '' }}">{{ subcategory.name }}{% if subcategory.category %} [{{ subcategory.category.name }}]{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="add-staff_name">Staff Name *</label>
+                <input type="text" id="add-staff_name" name="staff_name" required placeholder="Your name">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
+                <button type="submit" class="btn btn-success">Add Product</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Product Modal -->
+<div id="edit-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseEditModal()">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeEditModal()">&times;</button>
+        <h2>Edit Product</h2>
+        <form id="edit-product-form" onsubmit="submitEditProduct(event)">
+            <input type="hidden" id="edit-id" name="id">
+            <div class="form-group">
+                <label for="edit-name">Product Name *</label>
+                <input type="text" id="edit-name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-quantity">Quantity *</label>
+                <input type="number" id="edit-quantity" name="quantity" required min="0">
+            </div>
+            <div class="form-group">
+                <label for="edit-cost_price">Cost Price ($) *</label>
+                <input type="number" id="edit-cost_price" name="cost_price" required min="0" step="0.01">
+            </div>
+            <div class="form-group">
+                <label for="edit-price">Selling Price ($) *</label>
+                <input type="number" id="edit-price" name="price" required min="0" step="0.01">
+            </div>
+            <div class="form-group">
+                <label for="edit-max_per_order">Max Per Order (optional)</label>
+                <input type="number" id="edit-max_per_order" name="max_per_order" min="1" placeholder="Unlimited">
+            </div>
+            <div class="form-group">
+                <label for="edit-release_date">Release Date</label>
+                <input type="date" id="edit-release_date" name="release_date">
+            </div>
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <label for="edit-category_id">Category</label>
+                    <button type="button" class="btn btn-sm btn-success" onclick="openAddCategoryModal('edit')">+ Add Category</button>
+                </div>
+                <select id="edit-category_id" name="category_id" onchange="filtersubcategories('edit')">
+                    {% for category in categories %}
+                    <option value="{{ category.id }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <label for="edit-subcategory_id">Set Name</label>
+                    <button type="button" class="btn btn-sm btn-success" onclick="openAddSubcategoryModal('edit')">+ Add Set Name</button>
+                </div>
+                <select id="edit-subcategory_id" name="subcategory_id">
+                    {% for subcategory in subcategories %}
+                    <option value="{{ subcategory.id }}" data-category-id="{{ subcategory.category_id if subcategory.category_id else '' }}">{{ subcategory.name }}{% if subcategory.category %} [{{ subcategory.category.name }}]{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="edit-staff_name">Staff Name *</label>
+                <input type="text" id="edit-staff_name" name="staff_name" required placeholder="Your name">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeDeleteModal()">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+        <div style="text-align: center; margin-bottom: 1rem;">
+            <span style="font-size: 2.5rem;">⚠️</span>
+        </div>
+        <h3 style="text-align: center; margin-bottom: 0.5rem;">Delete Product</h3>
+        <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.5rem;" id="delete-product-name"></p>
+        <p style="text-align: center; color: var(--btn-danger); font-weight: 600; margin-bottom: 1.5rem;">This action cannot be undone.</p>
+        <form id="delete-form" onsubmit="submitDelete(event)">
+            <input type="hidden" id="delete-id">
+            <div class="form-group">
+                <label for="delete-staff">Staff Name *</label>
+                <input type="text" id="delete-staff" name="staff_name" required placeholder="Your name">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: center; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                <button type="submit" class="btn btn-danger">Delete Product</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add Category Modal -->
+<div id="add-category-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeAddCategoryModal()">
+    <div class="modal-box" style="max-width: 400px;">
+        <button class="modal-close" onclick="closeAddCategoryModal()">&times;</button>
+        <h2>Add Category</h2>
+        <form id="add-category-form" onsubmit="submitAddCategory(event)">
+            <input type="hidden" id="add-category-target" value="add">
+            <div class="form-group">
+                <label for="add-category-name">Category Name *</label>
+                <input type="text" id="add-category-name" name="name" required placeholder="e.g. Magic: The Gathering">
+            </div>
+            <div class="form-group">
+                <label for="add-category-staff">Staff Name *</label>
+                <input type="text" id="add-category-staff" name="staff_name" required placeholder="Your name">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeAddCategoryModal()">Cancel</button>
+                <button type="submit" class="btn btn-success">Add Category</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add Set Name Modal -->
+<div id="add-subcategory-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeAddSubcategoryModal()">
+    <div class="modal-box" style="max-width: 400px;">
+        <button class="modal-close" onclick="closeAddSubcategoryModal()">&times;</button>
+        <h2>Add Set Name</h2>
+        <form id="add-subcategory-form" onsubmit="submitAddSubcategory(event)">
+            <input type="hidden" id="add-subcategory-target" value="add">
+            <div class="form-group">
+                <label for="add-subcategory-category_id">Parent Category *</label>
+                <select id="add-subcategory-category_id" name="category_id" required>
+                    <option value="">-- Select Category --</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="add-subcategory-name">subcategory Name *</label>
+                <input type="text" id="add-subcategory-name" name="name" required placeholder="e.g. Booster Box">
+            </div>
+            <div class="form-group">
+                <label for="add-subcategory-staff">Staff Name *</label>
+                <input type="text" id="add-subcategory-staff" name="staff_name" required placeholder="Your name">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeAddSubcategoryModal()">Cancel</button>
+                <button type="submit" class="btn btn-success">Add Set Name</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Bulk Change Category Modal -->
+<div id="bulk-category-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeBulkCategoryModal()">
+    <div class="modal-box" style="max-width: 450px;">
+        <button class="modal-close" onclick="closeBulkCategoryModal()">&times;</button>
+        <h2>Change Category</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Change the category and subcategory for selected products.</p>
+        <form id="bulk-category-form" onsubmit="submitBulkCategory(event)">
+            <div class="form-group">
+                <label for="bulk-category_id">Category</label>
+                <select id="bulk-category_id" name="category_id" onchange="filterBulksubcategories()">
+                    {% for category in categories %}
+                    <option value="{{ category.id }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="bulk-subcategory_id">Set Name</label>
+                <select id="bulk-subcategory_id" name="subcategory_id">
+                    {% for subcategory in subcategories %}
+                    <option value="{{ subcategory.id }}" data-category-id="{{ subcategory.category_id if subcategory.category_id else '' }}">{{ subcategory.name }}{% if subcategory.category %} [{{ subcategory.category.name }}]{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="bulk-category-staff">Staff Name *</label>
+                <input type="text" id="bulk-category-staff" name="staff_name" required placeholder="Your name">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeBulkCategoryModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Change Category</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Bulk Add Set Name Modal -->
+<div id="bulk-subcategory-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeBulkSubcategoryModal()">
+    <div class="modal-box" style="max-width: 450px;">
+        <button class="modal-close" onclick="closeBulkSubcategoryModal()">&times;</button>
+        <h2>Add Set Name</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Assign a subcategory to selected products.</p>
+        <form id="bulk-subcategory-form" onsubmit="submitBulkSubcategory(event)">
+            <div class="form-group">
+                <label for="bulk-subcategory-category_id">Parent Category *</label>
+                <select id="bulk-subcategory-category_id" name="category_id" required onchange="filterBulkSubAssign()">
+                    <option value="">-- Select Category --</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="bulk-subcategory-select">subcategory *</label>
+                <select id="bulk-subcategory-select" name="subcategory_id" required>
+                    <option value="">-- Select a category first --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="bulk-subcategory-staff">Staff Name *</label>
+                <input type="text" id="bulk-subcategory-staff" name="staff_name" required placeholder="Your name">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeBulkSubcategoryModal()">Cancel</button>
+                <button type="submit" class="btn btn-success">Assign subcategory</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Bulk Delete Modal -->
+<div id="bulk-delete-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeBulkDeleteModal()">
+    <div class="modal-box" style="max-width: 450px;">
+        <button class="modal-close" onclick="closeBulkDeleteModal()">&times;</button>
+        <h2 style="color: #e74c3c;">Delete Selected Products</h2>
+        <p id="bulk-delete-count" style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;"></p>
+        <p style="color: #e74c3c; font-size: 0.9rem; margin-bottom: 1rem;">⚠️ This will permanently delete the selected products. This action cannot be undone.</p>
+        <form id="bulk-delete-form" onsubmit="submitBulkDelete(event)">
+            <div class="form-group">
+                <label for="bulk-delete-staff">Staff Name *</label>
+                <input type="text" id="bulk-delete-staff" name="staff_name" required placeholder="Your name">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeBulkDeleteModal()">Cancel</button>
+                <button type="submit" class="btn btn-danger">Delete Selected</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Product data for filtering
+var allsubcategories = [
+    {% for ps in subcategories %}
+    { id: {{ ps.id }}, name: "{{ ps.name | replace('"', '\\"') }}", categoryId: {{ ps.category_id if ps.category_id else 'null' }} },
+    {% endfor %}
+];
+
+var currentDeleteProductId = null;
+
+// Add Modal
+function openAddModal() {
+    document.getElementById('add-modal').style.display = 'flex';
+    setTimeout(function() { document.getElementById('add-name').focus(); }, 100);
+}
+
+function closeAddModal() {
+    document.getElementById('add-modal').style.display = 'none';
+    document.getElementById('add-product-form').reset();
+}
+
+function promptCloseAddModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeAddModal();
+    }
+}
+
+function submitAddProduct(e) {
+    e.preventDefault();
+    var staffName = document.getElementById('add-staff_name').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        document.getElementById('add-staff_name').focus();
+        return;
+    }
+    var formData = new FormData(document.getElementById('add-product-form'));
+    fetch('/inventory/add-json', { method: 'POST', body: formData })
+        .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
+        .then(function(result) {
+            if (result.status === 201) {
+                closeAddModal();
+                showToast('Product "' + result.data.name + '" added successfully.', 'success');
+                setTimeout(function() { location.reload(); }, 1500);
+            } else {
+                showToast('Error adding product.', 'error');
+            }
+        })
+        .catch(function() { showToast('Error adding product.', 'error'); });
+}
+
+// Edit Modal
+function openEditModal(id, name, quantity, price, costPrice, maxPerOrder, releaseDate, categoryId, subcategoryId) {
+    document.getElementById('edit-id').value = id;
+    document.getElementById('edit-name').value = name;
+    document.getElementById('edit-quantity').value = quantity;
+    document.getElementById('edit-cost_price').value = costPrice;
+    document.getElementById('edit-price').value = price;
+    document.getElementById('edit-max_per_order').value = maxPerOrder !== null && maxPerOrder !== undefined ? maxPerOrder : '';
+    document.getElementById('edit-release_date').value = releaseDate;
+    document.getElementById('edit-category_id').value = categoryId || '';
+    document.getElementById('edit-modal').style.display = 'flex';
+    // Filter subcategories after setting category
+    setTimeout(function() {
+        filtersubcategories('edit');
+        // Re-select the subcategory after filtering
+        document.getElementById('edit-subcategory_id').value = subcategoryId || '';
+    }, 50);
+    setTimeout(function() { document.getElementById('edit-name').focus(); }, 100);
+}
+
+function closeEditModal() {
+    document.getElementById('edit-modal').style.display = 'none';
+}
+
+function promptCloseEditModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeEditModal();
+    }
+}
+
+function submitEditProduct(e) {
+    e.preventDefault();
+    var staffName = document.getElementById('edit-staff_name').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        document.getElementById('edit-staff_name').focus();
+        return;
+    }
+    var id = document.getElementById('edit-id').value;
+    var formData = new FormData(document.getElementById('edit-product-form'));
+    fetch('/inventory/' + id + '/edit-json', { method: 'POST', body: formData })
+        .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
+        .then(function(result) {
+            if (result.status === 200) {
+                closeEditModal();
+                showToast('Product "' + result.data.name + '" updated successfully.', 'success');
+                setTimeout(function() { location.reload(); }, 1500);
+            } else {
+                showToast('Error updating product.', 'error');
+            }
+        })
+        .catch(function() { showToast('Error updating product.', 'error'); });
+}
+
+// Delete Modal
+function confirmDelete(productId, productName) {
+    currentDeleteProductId = productId;
+    document.getElementById('delete-product-name').textContent = 'Are you sure you want to delete "' + productName + '"?';
+    document.getElementById('delete-id').value = productId;
+    document.getElementById('delete-staff').value = '';
+    document.getElementById('delete-modal').style.display = 'flex';
+}
+
+function closeDeleteModal() {
+    document.getElementById('delete-modal').style.display = 'none';
+    currentDeleteProductId = null;
+    document.getElementById('delete-form').reset();
+}
+
+function submitDelete(e) {
+    e.preventDefault();
+    var productId = document.getElementById('delete-id').value;
+    var staffName = document.getElementById('delete-staff').value.trim();
+    if (!staffName) return;
+    var formData = new FormData();
+    formData.append('staff_name', staffName);
+    fetch('/inventory/' + productId + '/delete-json', { method: 'POST', body: formData })
+        .then(function(r) { return r.json().then(function(d) { return { status: r.status, data: d }; }); })
+        .then(function(result) {
+            if (result.status === 200) { closeDeleteModal(); showToast('Product "' + result.data.name + '" deleted.', 'success'); window.location.reload(); }
+            else showToast('Error deleting product.', 'error');
+        })
+        .catch(function() { showToast('Error deleting product.', 'error'); });
+}
+
+// Filter subcategories by category
+function filtersubcategories(prefix) {
+    var categoryId = document.getElementById(prefix + '-category_id').value;
+    var select = document.getElementById(prefix + '-subcategory_id');
+    var options = select.querySelectorAll('option[data-category-id]');
+    options.forEach(function(opt) {
+        if (categoryId === '') {
+            opt.style.display = '';
+        } else {
+            opt.style.display = (opt.getAttribute('data-category-id') === categoryId) ? '' : 'none';
+        }
+    });
+    // Reset selection if current selection is hidden
+    if (select.selectedIndex > 0) {
+        var selected = options[select.selectedIndex - 1];
+        if (selected && selected.style.display === 'none') {
+            select.selectedIndex = 0;
+        }
+    }
+}
+
+// Add Category Modal
+function openAddCategoryModal(target) {
+    document.getElementById('add-category-target').value = target;
+    document.getElementById('add-category-modal').style.display = 'flex';
+    setTimeout(function() { document.getElementById('add-category-name').focus(); }, 100);
+}
+
+function closeAddCategoryModal() {
+    document.getElementById('add-category-modal').style.display = 'none';
+    document.getElementById('add-category-form').reset();
+}
+
+function submitAddCategory(e) {
+    e.preventDefault();
+    var target = document.getElementById('add-category-target').value;
+    var name = document.getElementById('add-category-name').value.trim();
+    if (!name) return;
+    var formData = new FormData();
+    formData.append('name', name);
+    formData.append('staff_name', document.getElementById('add-category-staff') ? document.getElementById('add-category-staff').value.trim() : '');
+    fetch('/categories/add-json', { method: 'POST', body: formData })
+        .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
+        .then(function(result) {
+            if (result.status === 201) {
+                // Add the new category to the dropdown
+                var select = document.getElementById(target + '-category_id');
+                var option = document.createElement('option');
+                option.value = result.data.id;
+                option.textContent = result.data.name;
+                select.appendChild(option);
+                // Auto-select the new category
+                select.value = result.data.id;
+                // Trigger subcategory filtering
+                filtersubcategories(target);
+                closeAddCategoryModal();
+                showToast('Category "' + result.data.name + '" added successfully.', 'success');
+            } else if (result.status === 409) {
+                showToast(result.data.detail || 'Category already exists.', 'error');
+            } else {
+                showToast('Error adding category.', 'error');
+            }
+        })
+        .catch(function() { showToast('Error adding category.', 'error'); });
+}
+
+// Add Set Name Modal
+function openAddSubcategoryModal(target) {
+    document.getElementById('add-subcategory-target').value = target;
+    // Pre-select the currently selected category in the subcategory modal
+    var categoryId = document.getElementById(target + '-category_id').value;
+    document.getElementById('add-subcategory-modal').style.display = 'flex';
+    setTimeout(function() {
+        if (categoryId) {
+            document.getElementById('add-subcategory-category_id').value = categoryId;
+        }
+        document.getElementById('add-subcategory-name').focus();
+    }, 100);
+}
+
+function closeAddSubcategoryModal() {
+    document.getElementById('add-subcategory-modal').style.display = 'none';
+    document.getElementById('add-subcategory-form').reset();
+}
+
+function submitAddSubcategory(e) {
+    e.preventDefault();
+    var target = document.getElementById('add-subcategory-target').value;
+    var name = document.getElementById('add-subcategory-name').value.trim();
+    var categoryId = document.getElementById('add-subcategory-category_id').value;
+    if (!name || !categoryId) return;
+    var formData = new FormData();
+    formData.append('name', name);
+    formData.append('category_id', categoryId);
+    formData.append('staff_name', document.getElementById('add-subcategory-staff') ? document.getElementById('add-subcategory-staff').value.trim() : '');
+    fetch('/subcategories/add-json', { method: 'POST', body: formData })
+        .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
+        .then(function(result) {
+            if (result.status === 201) {
+                // Add the new subcategory to the dropdown
+                var select = document.getElementById(target + '-subcategory_id');
+                var option = document.createElement('option');
+                option.value = result.data.id;
+                option.setAttribute('data-category-id', result.data.category_id || '');
+                option.textContent = result.data.name;
+                select.appendChild(option);
+                // Auto-select the new subcategory
+                select.value = result.data.id;
+                closeAddSubcategoryModal();
+                showToast('subcategory "' + result.data.name + '" added successfully.', 'success');
+            } else if (result.status === 409) {
+                showToast(result.data.detail || 'subcategory already exists.', 'error');
+            } else {
+                showToast('Error adding subcategory.', 'error');
+            }
+        })
+        .catch(function() { showToast('Error adding subcategory.', 'error'); });
+}
+
+// Close modals on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeAddModal();
+        closeEditModal();
+        closeDeleteModal();
+        closeAddCategoryModal();
+        closeAddSubcategoryModal();
+        closeBulkCategoryModal();
+        closeBulkSubcategoryModal();
+        closeBulkDeleteModal();
+    }
+});
+
+// Unsaved changes warning — warn if a modal is open
+function isAnyModalOpen() {
+    return document.getElementById('add-modal').style.display !== 'none' ||
+           document.getElementById('edit-modal').style.display !== 'none' ||
+           document.getElementById('delete-modal').style.display !== 'none' ||
+           document.getElementById('add-category-modal').style.display !== 'none' ||
+           document.getElementById('add-subcategory-modal').style.display !== 'none' ||
+           document.getElementById('bulk-category-modal').style.display !== 'none' ||
+           document.getElementById('bulk-subcategory-modal').style.display !== 'none' ||
+           document.getElementById('bulk-delete-modal').style.display !== 'none';
+}
+
+window.addEventListener('beforeunload', function(e) {
+    if (isAnyModalOpen()) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+    }
+});
+
+// Warn when clicking navigation links with a modal open
+document.querySelectorAll('a[href]').forEach(link => {
+    const href = link.getAttribute('href');
+    if (href && !href.startsWith('/inventory') && !href.startsWith('#') && !href.startsWith('javascript:')) {
+        link.addEventListener('click', function(event) {
+            if (isAnyModalOpen()) {
+                if (!confirm('You have an open form with unsaved changes. Are you sure you want to leave?')) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                }
+            }
+        });
+    }
+});
+
+// Search functionality
+var inventorySearch = document.getElementById('inventory-search');
+if (inventorySearch) {
+    inventorySearch.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            searchInventory();
+        }
+    });
+}
+
+function searchInventory() {
+    var searchInput = document.getElementById('inventory-search');
+    var term = searchInput ? searchInput.value.trim() : '';
+    if (term) {
+        window.location.href = '/inventory?search=' + encodeURIComponent(term);
+    }
+}
+
+function clearInventorySearch() {
+    window.location.href = '/inventory';
+}
+
+// Bulk selection
+function getSelectedProductIds() {
+    var checkboxes = document.querySelectorAll('.product-checkbox:checked');
+    var ids = [];
+    checkboxes.forEach(function(cb) { ids.push(cb.value); });
+    return ids;
+}
+
+function updateSelectedCount() {
+    var selected = getSelectedProductIds();
+    var bulkActions = document.getElementById('bulk-actions');
+    var selectedCount = document.getElementById('selected-count');
+    if (selected.length > 0) {
+        bulkActions.style.display = 'flex';
+        selectedCount.textContent = selected.length + ' selected';
+    } else {
+        bulkActions.style.display = 'none';
+    }
+    // Update Select All checkbox state
+    var allCheckboxes = document.querySelectorAll('.product-checkbox');
+    var selectAll = document.getElementById('select-all-products');
+    if (selectAll) {
+        selectAll.checked = selected.length === allCheckboxes.length && allCheckboxes.length > 0;
+        selectAll.indeterminate = selected.length > 0 && selected.length < allCheckboxes.length;
+    }
+}
+
+function toggleSelectAllProducts() {
+    var selectAll = document.getElementById('select-all-products');
+    var checkboxes = document.querySelectorAll('.product-checkbox');
+    checkboxes.forEach(function(cb) { cb.checked = selectAll.checked; });
+    updateSelectedCount();
+}
+
+// Bulk Change Category Modal
+function openBulkCategoryModal() {
+    document.getElementById('bulk-category-modal').style.display = 'flex';
+    setTimeout(function() { document.getElementById('bulk-category_id').focus(); }, 100);
+}
+
+function closeBulkCategoryModal() {
+    document.getElementById('bulk-category-modal').style.display = 'none';
+    document.getElementById('bulk-category-form').reset();
+}
+
+function filterBulksubcategories() {
+    var categoryId = document.getElementById('bulk-category_id').value;
+    var select = document.getElementById('bulk-subcategory_id');
+    var options = select.querySelectorAll('option[data-category-id]');
+    options.forEach(function(opt) {
+        opt.style.display = (categoryId === '' || opt.getAttribute('data-category-id') === categoryId) ? '' : 'none';
+    });
+    if (select.selectedIndex > 0) {
+        var selected = options[select.selectedIndex - 1];
+        if (selected && selected.style.display === 'none') {
+            select.selectedIndex = 0;
+        }
+    }
+}
+
+function submitBulkCategory(e) {
+    e.preventDefault();
+    var ids = getSelectedProductIds();
+    if (ids.length === 0) {
+        showToast('No products selected.', 'error');
+        return;
+    }
+    var staffName = document.getElementById('bulk-category-staff').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        return;
+    }
+    var formData = new FormData();
+    formData.append('product_ids', ids.join(','));
+    formData.append('category_id', document.getElementById('bulk-category_id').value);
+    formData.append('subcategory_id', document.getElementById('bulk-subcategory_id').value);
+    formData.append('staff_name', staffName);
+    fetch('/inventory/bulk-change-category', { method: 'POST', body: formData })
+        .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
+        .then(function(result) {
+            if (result.status === 200) {
+                closeBulkCategoryModal();
+                showToast(result.data.count + ' products updated.', 'success');
+                setTimeout(function() { location.reload(); }, 1500);
+            } else {
+                showToast('Error updating products.', 'error');
+            }
+        })
+        .catch(function() { showToast('Error updating products.', 'error'); });
+}
+
+// Bulk Add Set Name Modal
+function openBulkSubcategoryModal() {
+    document.getElementById('bulk-subcategory-modal').style.display = 'flex';
+    // Reset subcategory select
+    var select = document.getElementById('bulk-subcategory-select');
+    select.innerHTML = '<option value="">-- Select a category first --</option>';
+    setTimeout(function() { document.getElementById('bulk-subcategory-category_id').focus(); }, 100);
+}
+
+function closeBulkSubcategoryModal() {
+    document.getElementById('bulk-subcategory-modal').style.display = 'none';
+    document.getElementById('bulk-subcategory-form').reset();
+}
+
+function filterBulkSubAssign() {
+    var categoryId = document.getElementById('bulk-subcategory-category_id').value;
+    var select = document.getElementById('bulk-subcategory-select');
+    select.innerHTML = '<option value="">-- Select a category first --</option>';
+    if (categoryId) {
+        allsubcategories.forEach(function(sub) {
+            if (sub.categoryId == categoryId) {
+                var option = document.createElement('option');
+                option.value = sub.id;
+                option.textContent = sub.name;
+                select.appendChild(option);
+            }
+        });
+    }
+}
+
+function submitBulkSubcategory(e) {
+    e.preventDefault();
+    var ids = getSelectedProductIds();
+    if (ids.length === 0) {
+        showToast('No products selected.', 'error');
+        return;
+    }
+    var staffName = document.getElementById('bulk-subcategory-staff').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        return;
+    }
+    var categoryId = document.getElementById('bulk-subcategory-category_id').value;
+    var subId = document.getElementById('bulk-subcategory-select').value;
+    if (!categoryId || !subId) {
+        showToast('Please select both category and subcategory.', 'error');
+        return;
+    }
+    var formData = new FormData();
+    formData.append('product_ids', ids.join(','));
+    formData.append('category_id', categoryId);
+    formData.append('subcategory_id', subId);
+    formData.append('staff_name', staffName);
+    fetch('/inventory/bulk-change-category', { method: 'POST', body: formData })
+        .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
+        .then(function(result) {
+            if (result.status === 200) {
+                closeBulkSubcategoryModal();
+                showToast(result.data.count + ' products updated.', 'success');
+                setTimeout(function() { location.reload(); }, 1500);
+            } else {
+                showToast('Error updating products.', 'error');
+            }
+        })
+        .catch(function() { showToast('Error updating products.', 'error'); });
+}
+
+// Bulk Delete Modal
+function openBulkDeleteModal() {
+    var ids = getSelectedProductIds();
+    document.getElementById('bulk-delete-count').textContent = 'You are about to delete ' + ids.length + ' product(s).';
+    document.getElementById('bulk-delete-modal').style.display = 'flex';
+    setTimeout(function() { document.getElementById('bulk-delete-staff').focus(); }, 100);
+}
+
+function closeBulkDeleteModal() {
+    document.getElementById('bulk-delete-modal').style.display = 'none';
+    document.getElementById('bulk-delete-form').reset();
+}
+
+function submitBulkDelete(e) {
+    e.preventDefault();
+    var ids = getSelectedProductIds();
+    if (ids.length === 0) {
+        showToast('No products selected.', 'error');
+        return;
+    }
+    var staffName = document.getElementById('bulk-delete-staff').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        return;
+    }
+    var formData = new FormData();
+    formData.append('product_ids', ids.join(','));
+    formData.append('staff_name', staffName);
+    fetch('/inventory/bulk-delete', { method: 'POST', body: formData })
+        .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
+        .then(function(result) {
+            if (result.status === 200) {
+                closeBulkDeleteModal();
+                showToast(result.data.count + ' products deleted.', 'success');
+                setTimeout(function() { location.reload(); }, 1500);
+            } else {
+                showToast('Error deleting products.', 'error');
+            }
+        })
+        .catch(function() { showToast('Error deleting products.', 'error'); });
+}
+</script>
+{% endblock %}

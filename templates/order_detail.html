@@ -1,0 +1,1594 @@
+{% extends "base.html" %}
+
+{% block title %}Order #{{ order.id }} - {{ store_settings.store_name if store_settings and store_settings.store_name else 'TCG Preorder Manager' }}{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <h1>Order #{{ order.id }}</h1>
+    <div style="display: flex; gap: 0.75rem;">
+        <button type="button" class="btn btn-success" onclick="openPaymentModal()">💰 Add Payment</button>
+        <button type="button" class="btn btn-primary" onclick="openPickupModal()">📦 Manage Pickup</button>
+        <a href="/orders" class="btn btn-secondary" id="back-to-orders-btn">Back to Orders</a>
+    </div>
+</div>
+
+{% if error %}
+<div class="flash flash-error">{{ error }}</div>
+{% endif %}
+{% if success %}
+<div class="flash flash-success">{{ success }}</div>
+{% endif %}
+{% if stock_warnings %}
+<div class="flash flash-error" style="background: var(--flash-warning-bg, #fff3cd); color: var(--flash-warning-text, #856404); border-color: var(--flash-warning-border, #ffeeba);">
+    <strong>⚠ Stock Warning:</strong> The following items do not have enough stock available:
+    <ul style="margin: 0.5rem 0 0 1.5rem;">
+        {% for warning in stock_warnings %}
+        <li>{{ warning }}</li>
+        {% endfor %}
+    </ul>
+    <p style="margin-top: 0.5rem;">Please adjust quantities or confirm to save without deducting stock.</p>
+</div>
+{% endif %}
+
+<div class="card">
+    <form method="post" action="/orders/{{ order.id }}">
+        <h2>Customer</h2>
+        <div style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.75rem;">
+            <div>
+                <label>Customer</label>
+                <input type="hidden" name="customer_id" id="customer_id" value="{{ order.customer.id }}" required>
+                <div id="customer-name-display" class="customer-badge" style="padding: 0.35rem 1rem; font-size: 1rem;">{{ order.customer.full_name }}</div>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" onclick="openEditCustomerModal()" title="Edit customer details" style="margin-top: 1.25rem;">✏️ Edit Customer</button>
+        </div>
+        <div style="margin-bottom: 1.5rem; color: var(--text-muted);">
+            <span id="customer-phone">{{ order.customer.phone }}</span>
+            {% if order.customer.email %} | <span id="customer-email">{{ order.customer.email }}</span>{% endif %}
+        </div>
+
+        <h2>Finance</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div>
+                <label>Order Total</label>
+                <div style="padding: 0.5rem; font-weight: 600; font-size: 1.1rem;">$ {{ "%.2f" % order.total }}</div>
+            </div>
+            <div>
+                <label>Deposit Paid</label>
+                <div style="padding: 0.5rem; font-weight: 600; font-size: 1.1rem;">$ {{ "%.2f" % order.deposit }}</div>
+            </div>
+            <div>
+                <label>Balance Remaining</label>
+                <div id="balance-display" style="padding: 0.5rem; font-weight: 600; font-size: 1.1rem; color: {% if order.balance > 0 %}#e74c3c{% else %}#27ae60{% endif %};">$ {{ "%.2f" % order.balance }}</div>
+            </div>
+        </div>
+        <div style="margin-bottom: 1.5rem;">
+            <label>Staff Name</label>
+            <input type="hidden" name="staff_name" id="staff_name" value="{{ order.staff_name or '' }}">
+            <div style="padding: 0.5rem; font-weight: 600; font-size: 1.1rem;">{{ order.staff_name or '-' }}</div>
+        </div>
+
+        {% set picked, total = order.pickup_progress %}
+        <div id="pickup-progress-display" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--th-bg); border-radius: 6px;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                {% if order.is_fully_picked_up %}
+                <span id="pickup-status-text" style="font-size: 1.1rem; font-weight: 600; color: #27ae60;">✓ Fully Picked Up ({{ picked }}/{{ total }})</span>
+                {% elif picked > 0 %}
+                <span id="pickup-status-text" style="font-size: 1.1rem; font-weight: 600; color: #3498db;">⏳ Partially Picked Up ({{ picked }}/{{ total }})</span>
+                {% else %}
+                <span id="pickup-status-text" style="font-size: 1.1rem; font-weight: 600; color: #f39c12;">○ Not Picked Up</span>
+                {% endif %}
+            </div>
+            <p style="margin: 0.5rem 0 0 0; color: var(--text-muted); font-size: 0.85rem;">Click the progress bar to cycle through pickup units, or use the quick buttons below.</p>
+        </div>
+
+        <h2>Order Items</h2>
+        <div style="display: grid; grid-template-columns: 1fr 50px 60px 90px 100px 160px auto; gap: 0.5rem; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.85rem; color: var(--text-muted); padding: 0 0.25rem;">
+            <div></div>
+            <div>Max</div>
+            <div>Qty</div>
+            <div>Price</div>
+            <div>Subtotal</div>
+            <div style="text-align: center;">Picked Up</div>
+            <div>Actions</div>
+        </div>
+        <div id="items-container">
+            {% for item in order.items %}
+            {% set item_picked = item.picked_up_quantity or 0 %}
+            {% set item_total = item.quantity %}
+            <div class="item-row" data-parent-item-id="{{ item.id }}" data-item-id="{{ item.id }}" data-item-qty="{{ item_total }}" data-item-picked="{{ item_picked }}" style="display: grid; grid-template-columns: 1fr 50px 60px 90px 100px 160px auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;">
+                <div>
+                    <label>Product</label>
+                    <input type="hidden" name="product_ids" value="{{ item.product_id }}">
+                    <div style="padding: 0.5rem; font-size: 0.9rem; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ item.product.name if item.product else 'Unknown' }}">{{ item.product.name if item.product else 'Unknown' }}</div>
+                </div>
+                <div>
+                    <label>Max</label>
+                    <div class="max-pp-display" style="padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; text-align: center; font-weight: 500; color: {% if item.product and item.product.max_per_order %}var(--text){% else %}var(--text-muted){% endif %};">{% if item.product and item.product.max_per_order %}{{ item.product.max_per_order }}{% else %}∞{% endif %}</div>
+                </div>
+                <div>
+                    <label>Qty</label>
+                    <input type="number" name="quantities" required min="0" value="{{ item.quantity }}" style="width: 100%;" oninput="checkStock(this.closest('.item-row'));">
+                </div>
+                <div>
+                    <label>Price</label>
+                    <input type="hidden" name="prices" value="{{ "%.2f" % item.unit_price }}">
+                    <div style="padding: 0.5rem; font-weight: 600; white-space: nowrap;">$ {{ "%.2f" % item.unit_price }}</div>
+                </div>
+                <div>
+                    <label>Subtotal</label>
+                    <div class="subtotal" style="padding: 0.5rem; font-weight: 600; white-space: nowrap;">$ {{ "%.2f" % (item.quantity * item.unit_price) }}</div>
+                </div>
+                <div style="display: flex; align-items: end; justify-content: center;">
+                    <input type="hidden" name="picked_up_{{ item.id }}" value="{{ item_picked }}">
+                    <div class="pickup-progress-bar" data-item-id="{{ item.id }}" data-picked="{{ item_picked }}" data-total="{{ item_total }}" style="flex: 1; padding: 0.25rem; text-align: center;" title="{{ item_picked }}/{{ item_total }}">
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">
+                            {% if item_picked == item_total and item_total > 0 %}
+                            <span class="pickup-icon" style="color: #27ae60; font-size: 1.1rem;">✓</span>
+                            {% elif item_picked > 0 %}
+                            <span class="pickup-icon" style="color: #3498db; font-size: 1.1rem;">⏳</span>
+                            {% else %}
+                            <span class="pickup-icon" style="color: #95a5a6; font-size: 1.1rem;">○</span>
+                            {% endif %}
+                            <span class="pickup-fraction" style="font-size: 0.85rem; font-weight: 600; color: {% if item_picked == item_total and item_total > 0 %}#27ae60{% elif item_picked > 0 %}#3498db{% else %}#95a5a6{% endif %};">{{ item_picked }}/{{ item_total }}</span>
+                        </div>
+                        <div class="pickup-bar-track" style="width: 100%; height: 4px; background: var(--border); border-radius: 2px; margin-top: 0.25rem;">
+                            <div class="pickup-bar-fill" style="width: {% if item_total > 0 %}{{ (item_picked / item_total * 100)|int }}{% else %}0{% endif %}%; height: 100%; background: {% if item_picked == item_total and item_total > 0 %}#27ae60{% elif item_picked > 0 %}#3498db{% else %}#95a5a6{% endif %}; border-radius: 2px;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: end;">
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeItemRow(this, '{{ item.id }}');">✕</button>
+                </div>
+                {% if item.product and item.product.release_date %}
+                <div style="grid-column: 1 / -1; color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.5rem;">
+                    📅 Release Date: {{ item.product.release_date.strftime('%Y-%m-%d') }}
+                </div>
+                {% endif %}
+                <div class="stock-warning" style="grid-column: 1 / -1; color: #e74c3c; font-size: 0.85rem; display: none;"></div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Add Product section -->
+        <div id="add-product-section" style="margin: 1rem 0;">
+            <button type="button" class="btn btn-secondary" onclick="addProductRow()">+ Add Product</button>
+        </div>
+
+
+        <div id="edit-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-light);">
+            <div style="font-size: 1.2rem; font-weight: 700;">
+                Total: <span id="order-total">$ {{ "%.2f" % order.total }}</span>
+            </div>
+            <div style="display: flex; gap: 0.75rem;">
+                <button type="submit" class="btn btn-success">Update Order</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Notes Section -->
+<div class="card" style="margin-top: 1.5rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2 style="margin: 0;">Notes</h2>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="openAddNoteModal()">+ Add Note</button>
+    </div>
+    {% if notes %}
+    <div id="notes-list">
+        {% for note in notes %}
+        <div class="note-item" data-note-id="{{ note.id }}" style="padding: 0.75rem; margin-bottom: 0.5rem; background: var(--th-bg); border-radius: 6px; border-left: 3px solid var(--primary);">
+            <div style="display: flex; justify-content: space-between; align-items: start; gap: 1rem;">
+                <div style="flex: 1;">
+                    <div style="white-space: pre-wrap; margin-bottom: 0.5rem;">{{ note.text }}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        {{ note.created_at.strftime('%Y-%m-%d %H:%M') if note.created_at else '-' }}
+                        {% if note.staff_name %} • {{ note.staff_name }}{% endif %}
+                    </div>
+                </div>
+                <button type="button" class="icon-btn icon-btn-danger" onclick="deleteNote({{ note.id }})" title="Delete note">✕</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color: var(--text-muted);">No notes yet. Click "+ Add Note" to add one.</p>
+    {% endif %}
+</div>
+
+<!-- Add Note Modal -->
+<div id="add-note-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button type="button" class="modal-close" onclick="closeAddNoteModal()">&times;</button>
+        <h3>Add Note</h3>
+        <form id="add-note-form" style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div>
+                <label for="note_text">Note</label>
+                <textarea id="note_text" name="note_text" rows="4" required style="width: 100%; resize: vertical;"></textarea>
+            </div>
+            <div>
+                <label for="note_staff">Staff Name</label>
+                <input type="text" id="note_staff" name="staff_name" placeholder="Your name (optional)" style="width: 100%;">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 0.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeAddNoteModal()">Cancel</button>
+                <button type="submit" class="btn btn-success">Add Note</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 1.5rem;">
+    <h2>Payment History</h2>
+    {% if payments %}
+    <table>
+        <thead>
+            <tr>
+                <th>Date/Time</th>
+                <th>Amount</th>
+                <th>Method</th>
+                <th>Staff</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for payment in payments %}
+            <tr>
+                <td>{{ payment.timestamp.strftime("%Y-%m-%d %H:%M") if payment.timestamp else '-' }}</td>
+                <td>$ {{ "%.2f" % payment.amount }}</td>
+                <td>{{ payment.payment_type.capitalize() }}</td>
+                <td>{{ payment.staff_name or '-' }}</td>
+                <td>
+                    <button type="button" class="btn btn-danger btn-sm" onclick='openRefundModal({{ payment.id }}, "{{ payment.amount }}", "{{ payment.payment_type }}")'>Refund</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted);">No payments recorded yet.</p>
+    {% endif %}
+</div>
+
+<!-- Payment Modal -->
+<div id="payment-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button type="button" class="modal-close" onclick="closePaymentModal()">&times;</button>
+        <h3>Add Payment</h3>
+        <div style="margin-bottom: 1rem; padding: 0.75rem; background: var(--th-bg); border-radius: 6px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>Order Total:</span><strong>$ {{ "%.2f" % order.total }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>Deposit Paid:</span><strong>$ {{ "%.2f" % order.deposit }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Balance:</span><strong style="color: {% if order.balance > 0 %}#e74c3c{% else %}#27ae60{% endif %};">$ {{ "%.2f" % order.balance }}</strong>
+            </div>
+        </div>
+        <form id="payment-form" style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div>
+                <label for="payment_amount">Amount ($)</label>
+                <input type="number" id="payment_amount" name="amount" min="0.01" step="0.01" required style="width: 100%;">
+            </div>
+            <div>
+                <label for="payment_type">Method</label>
+                <select id="payment_type" name="payment_type" required style="width: 100%;">
+                    <option value="cash">Cash</option>
+                    <option value="eftpos">EFTPOS</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div>
+                <label for="payment_staff">Staff Name *</label>
+                <input type="text" id="payment_staff" name="staff_name" placeholder="Your name" required style="width: 100%;">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 0.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closePaymentModal()">Cancel</button>
+                <button type="submit" class="btn btn-success">Continue</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Payment Confirmation Modal -->
+<div id="payment-confirm-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button type="button" class="modal-close" onclick="closePaymentConfirmModal()">&times;</button>
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <span style="font-size: 2rem;">💰</span>
+            <h3 style="margin: 0;">Confirm Payment</h3>
+        </div>
+        <p style="margin-bottom: 1rem;">Please confirm the payment details below before processing.</p>
+        <div style="margin-bottom: 1rem; padding: 0.75rem; background: var(--th-bg); border-radius: 6px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                <span>Payment Amount:</span><strong id="confirm-amount" style="font-size: 1.2rem; color: #27ae60;"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                <span>Payment Method:</span><strong id="confirm-method"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
+                <span>Staff Name:</span><strong id="confirm-staff"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>Current Balance:</span><strong id="confirm-balance"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Remaining After Payment:</span><strong id="confirm-remaining" style="color: {% if order.balance > 0 %}#e74c3c{% else %}#27ae60{% endif %};"></strong>
+            </div>
+        </div>
+        <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem;">
+            <button type="button" class="btn btn-secondary" onclick="backToPaymentModal()">Back</button>
+            <button type="button" class="btn btn-success" onclick="processPayment()">Confirm Payment</button>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 1.5rem;">
+    <h2>Order Log</h2>
+    {% if logs %}
+    <table>
+        <thead>
+            <tr>
+                <th>Date/Time</th>
+                <th>Action</th>
+                <th>Staff</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.timestamp.strftime("%Y-%m-%d %H:%M") if log.timestamp else '-' }}</td>
+                <td>{{ log.action }}</td>
+                <td>{{ log.staff_name or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted);">No log entries yet.</p>
+    {% endif %}
+</div>
+
+<div class="card" style="margin-top: 1.5rem;">
+    <h2 style="color: #e74c3c;">Delete Order</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1rem;">Deleting this order will mark it as deleted (not removed) and restore the deducted stock to inventory. The order will remain searchable.</p>
+    <button type="button" class="icon-btn icon-btn-lg icon-btn-danger" onclick="openDeleteModal()" title="Delete Order">
+        <svg width="24" height="24" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button type="button" class="modal-close" onclick="closeDeleteModal()">&times;</button>
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <span style="font-size: 2rem;">⚠️</span>
+            <h3 style="margin: 0; color: #e74c3c;">Confirm Delete Order</h3>
+        </div>
+        <p style="margin-bottom: 1rem;">This will mark Order #{{ order.id }} as deleted and restore stock to inventory. The order will remain in the database and can be searched or restored later.</p>
+        <div style="padding: 0.75rem; background: var(--th-bg); border-radius: 6px; margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>Customer:</span><strong>{{ order.customer.full_name }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Total:</span><strong>$ {{ "%.2f" % order.total }}</strong>
+            </div>
+        </div>
+        <form id="delete-form" style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div>
+                <label for="delete_staff">Staff Name *</label>
+                <input type="text" id="delete_staff" name="staff_name" placeholder="Your name" required style="width: 100%;">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 0.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                <button type="submit" class="btn btn-danger">Delete Order</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Refund Confirmation Modal -->
+<div id="refund-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button type="button" class="modal-close" onclick="closeRefundModal()">&times;</button>
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <span style="font-size: 2rem;">⚠️</span>
+            <h3 style="margin: 0; color: #e74c3c;">Confirm Refund</h3>
+        </div>
+        <p style="margin-bottom: 1rem;">This will refund the payment and increase the order balance. The payment will be removed from the history.</p>
+        <div style="padding: 0.75rem; background: var(--th-bg); border-radius: 6px; margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>Refund Amount:</span><strong id="refund-amount" style="color: #e74c3c;"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>Payment Method:</span><strong id="refund-method"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Current Balance:</span><strong>$ {{ "%.2f" % order.balance }}</strong>
+            </div>
+        </div>
+        <form id="refund-form" style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <input type="hidden" id="refund-payment-id" name="payment_id">
+            <div>
+                <label for="refund-reason">Reason</label>
+                <textarea id="refund-reason" name="reason" placeholder="Why are you refunding this payment?" rows="3" style="width: 100%; resize: vertical;"></textarea>
+            </div>
+            <div>
+                <label for="refund-staff">Staff Name *</label>
+                <input type="text" id="refund-staff" name="staff_name" placeholder="Your name" required style="width: 100%;">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 0.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeRefundModal()">Cancel</button>
+                <button type="submit" class="btn btn-danger">Confirm Refund</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Customer Modal -->
+<div id="edit-customer-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <button type="button" class="modal-close" onclick="closeEditCustomerModal()">&times;</button>
+        <h3>Edit Customer</h3>
+        <form id="edit-customer-form" style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div>
+                    <label for="edit-customer-first-name">First Name</label>
+                    <input type="text" id="edit-customer-first-name" value="{{ order.customer.first_name or '' }}" required style="width: 100%;">
+                </div>
+                <div>
+                    <label for="edit-customer-last-name">Last Name</label>
+                    <input type="text" id="edit-customer-last-name" value="{{ order.customer.last_name or '' }}" required style="width: 100%;">
+                </div>
+            </div>
+            <div>
+                <label for="edit-customer-phone">Phone</label>
+                <input type="text" id="edit-customer-phone" value="{{ order.customer.phone }}" required style="width: 100%;">
+            </div>
+            <div>
+                <label for="edit-customer-email">Email</label>
+                <input type="email" id="edit-customer-email" value="{{ order.customer.email or '' }}" style="width: 100%;">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 0.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditCustomerModal()">Cancel</button>
+                <button type="submit" class="btn btn-success">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.pickup-item-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    transition: background 0.15s;
+}
+.pickup-item-row:hover {
+    background: var(--th-bg);
+}
+.pickup-item-row .item-name {
+    flex: 1;
+    font-size: 0.95rem;
+}
+.pickup-item-row .item-qty {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+.pickup-progress-bar {
+    cursor: pointer;
+    width: 140px;
+    text-align: center;
+    padding: 0.25rem;
+}
+.pickup-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text);
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+.pickup-btn:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+.pickup-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+.pickup-progress-bar .pickup-bar-track {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 0.25rem;
+}
+.pickup-progress-bar .pickup-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.2s;
+}
+</style>
+
+<!-- Item Pickup Modal -->
+<div id="pickup-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 550px;">
+        <button type="button" class="modal-close" onclick="closePickupModal()">&times;</button>
+        <h3 id="pickup-modal-title">Manage Pickup</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Use the + and - buttons to adjust pickup units, or use the quick buttons below.</p>
+        <!-- Order Summary Section -->
+        <div id="pickup-order-summary" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: var(--th-bg); border-radius: 6px;">
+            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--text-muted);">Order Items</h4>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 0.5rem;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <th style="text-align: left; padding: 0.3rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Product</th>
+                        <th style="text-align: center; padding: 0.3rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Qty</th>
+                        <th style="text-align: right; padding: 0.3rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Price</th>
+                        <th style="text-align: right; padding: 0.3rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody id="pickup-items-summary-list"></tbody>
+            </table>
+            <div style="border-top: 1px solid var(--border); padding-top: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; font-size: 0.9rem;">
+                    <span>Total:</span><strong id="pickup-summary-total"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; font-size: 0.9rem;">
+                    <span>Deposit Paid:</span><strong id="pickup-summary-deposit" style="color: #27ae60;"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.95rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
+                    <span>Balance Owing:</span><strong id="pickup-summary-balance" style="color: #e74c3c;"></strong>
+                </div>
+            </div>
+        </div>
+        <div id="pickup-items-list" style="max-height: 300px; overflow-y: auto; margin-bottom: 1rem;"></div>
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-sm btn-info" onclick="pickupMarkAll()" title="Mark all items as fully picked up">✓ Mark All</button>
+            <button type="button" class="btn btn-sm btn-warning" onclick="pickupResetAll()" title="Reset all pickup progress">↩ Reset All</button>
+        </div>
+        <div style="margin-bottom: 1rem;">
+            <label for="pickup-staff-name">Staff Name *</label>
+            <input type="text" id="pickup-staff-name" placeholder="Your name" required style="width: 100%;">
+        </div>
+        <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+            <button type="button" class="btn btn-secondary" onclick="closePickupModal()">Cancel</button>
+            <button type="button" class="btn btn-success" onclick="confirmPickup()">Update Pickup</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openDeleteModal() {
+        document.getElementById('delete-modal').style.display = 'flex';
+        document.getElementById('delete_staff').focus();
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('delete-modal').style.display = 'none';
+        document.getElementById('delete_staff').value = '';
+    }
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeDeleteModal();
+    });
+
+    // Close modal when clicking outside
+    document.getElementById('delete-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeDeleteModal();
+    });
+
+    // Delete form submission via AJAX
+    const deleteForm = document.getElementById('delete-form');
+    if (deleteForm) {
+        deleteForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const staff = document.getElementById('delete_staff').value.trim();
+            if (!staff) {
+                showToast('Staff name is required.', 'error');
+                document.getElementById('delete_staff').focus();
+                return;
+            }
+            const formData = new FormData();
+            formData.append('staff_name', staff);
+
+            fetch('/orders/{{ order.id }}/delete-json', {
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showToast(data.error, 'error');
+                } else if (data.success) {
+                    showToast('Order deleted successfully. Stock has been restored.', 'success');
+                    closeDeleteModal();
+                    setTimeout(() => {
+                        window.location.href = '/orders';
+                    }, 1500);
+                }
+            })
+            .catch(err => {
+                showToast('Failed to delete order.', 'error');
+            });
+        });
+    }
+</script>
+
+{% endblock %}
+
+{% block extra_script %}
+<script>
+    // Unsaved changes warning
+    let hasUnsavedChanges = false;
+
+    function captureFormState() {
+        const state = {};
+        document.querySelectorAll('input[name="product_ids"]').forEach((el, i) => {
+            state['product_' + i] = el.value;
+        });
+        document.querySelectorAll('input[name="quantities"]').forEach((el, i) => {
+            state['qty_' + i] = el.value;
+        });
+        state['item_count'] = document.querySelectorAll('.item-row').length;
+        return state;
+    }
+
+    let originalFormState = captureFormState();
+
+    function checkForChanges() {
+        const currentState = {};
+        const hiddenInputs = document.querySelectorAll('input[name="product_ids"]');
+        const qtyInputs = document.querySelectorAll('input[name="quantities"]');
+        const itemCount = document.querySelectorAll('.item-row').length;
+        hiddenInputs.forEach((el, i) => { currentState['product_' + i] = el.value; });
+        qtyInputs.forEach((el, i) => { currentState['qty_' + i] = el.value; });
+        currentState['item_count'] = itemCount;
+        for (const key in originalFormState) {
+            if (String(originalFormState[key]) !== String(currentState[key])) return true;
+        }
+        for (const key in currentState) {
+            if (String(originalFormState[key]) !== String(currentState[key])) return true;
+        }
+        return false;
+    }
+
+    const mainForm = document.querySelector('form[action^="/orders/"]');
+    if (mainForm) {
+        mainForm.addEventListener('input', () => { hasUnsavedChanges = checkForChanges(); });
+        mainForm.addEventListener('change', () => { hasUnsavedChanges = checkForChanges(); });
+    }
+
+    window.addEventListener('beforeunload', function(e) {
+        if (hasUnsavedChanges) {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+    });
+
+    if (mainForm) {
+        mainForm.addEventListener('submit', function() { hasUnsavedChanges = false; });
+    }
+
+    document.querySelectorAll('a[href="/orders"]').forEach(link => {
+        link.addEventListener('click', function(event) {
+            if (hasUnsavedChanges) {
+                if (!confirm('You have unsaved changes to this order. Are you sure you want to leave?')) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                }
+            }
+            hasUnsavedChanges = false;
+        });
+    });
+
+    // Edit Customer modal functions
+    function openEditCustomerModal() {
+        document.getElementById('edit-customer-modal').style.display = 'flex';
+        document.getElementById('edit-customer-first-name').focus();
+    }
+
+    function closeEditCustomerModal() {
+        document.getElementById('edit-customer-modal').style.display = 'none';
+    }
+
+    // Close edit customer modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeEditCustomerModal();
+    });
+
+    // Close edit customer modal when clicking outside
+    document.getElementById('edit-customer-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeEditCustomerModal();
+    });
+
+    // Edit customer form submission via AJAX
+    const editCustomerForm = document.getElementById('edit-customer-form');
+    if (editCustomerForm) {
+        editCustomerForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('first_name', document.getElementById('edit-customer-first-name').value.trim());
+            formData.append('last_name', document.getElementById('edit-customer-last-name').value.trim());
+            formData.append('phone', document.getElementById('edit-customer-phone').value.trim());
+            formData.append('email', document.getElementById('edit-customer-email').value.trim());
+
+            fetch('/customers/edit-json/{{ order.customer.id }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showToast('Error: ' + data.error, 'error');
+                    return;
+                }
+                // Update the displayed customer info
+                document.getElementById('customer-name-display').textContent = data.full_name;
+                document.getElementById('customer-phone').textContent = data.phone;
+                const customerEmailEl = document.getElementById('customer-email');
+                if (data.email) {
+                    if (customerEmailEl) customerEmailEl.textContent = data.email;
+                }
+                showToast('Customer updated successfully!', 'success');
+                closeEditCustomerModal();
+                setTimeout(() => { window.location.reload(); }, 1000);
+            })
+            .catch(error => {
+                showToast('Error updating customer. Please try again.', 'error');
+                console.error('Error:', error);
+            });
+        });
+    }
+
+    // Payment modal functions
+    var pendingPayment = null;
+    var currentOrderBalance = {{ "%.2f" % order.balance }};
+
+    function openPaymentModal() {
+        document.getElementById('payment-modal').style.display = 'flex';
+        document.getElementById('payment_amount').value = '';
+        document.getElementById('payment_staff').value = '';
+        document.getElementById('payment_amount').focus();
+    }
+
+    function closePaymentModal() {
+        document.getElementById('payment-modal').style.display = 'none';
+        document.getElementById('payment_amount').value = '';
+        document.getElementById('payment_staff').value = '';
+    }
+
+    function closePaymentConfirmModal() {
+        document.getElementById('payment-confirm-modal').style.display = 'none';
+    }
+
+    function backToPaymentModal() {
+        document.getElementById('payment-confirm-modal').style.display = 'none';
+        document.getElementById('payment-modal').style.display = 'flex';
+    }
+
+    function showPaymentConfirmModal() {
+        var amount = parseFloat(document.getElementById('payment_amount').value) || 0;
+        var method = document.getElementById('payment_type').value;
+        var staff = document.getElementById('payment_staff').value.trim();
+        var remaining = currentOrderBalance - amount;
+
+        document.getElementById('confirm-amount').textContent = '$' + amount.toFixed(2);
+        document.getElementById('confirm-method').textContent = method.charAt(0).toUpperCase() + method.slice(1);
+        document.getElementById('confirm-staff').textContent = staff || '-';
+        document.getElementById('confirm-balance').textContent = '$' + currentOrderBalance.toFixed(2);
+        document.getElementById('confirm-remaining').textContent = '$' + remaining.toFixed(2);
+
+        // Store payment data for processing
+        pendingPayment = { amount: amount, method: method, staff: staff };
+
+        // Close payment modal, show confirmation modal
+        document.getElementById('payment-modal').style.display = 'none';
+        document.getElementById('payment-confirm-modal').style.display = 'flex';
+    }
+
+    function processPayment() {
+        if (!pendingPayment) return;
+
+        var formData = new FormData();
+        formData.append('amount', pendingPayment.amount);
+        formData.append('payment_type', pendingPayment.method);
+        formData.append('staff_name', pendingPayment.staff);
+
+        fetch('/orders/{{ order.id }}/payment-json', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showToast('Error: ' + data.error, 'error');
+                return;
+            }
+            closePaymentConfirmModal();
+            showToast('Payment of $' + data.amount.toFixed(2) + ' added successfully!', 'success');
+            setTimeout(function() { window.location.reload(); }, 1500);
+        })
+        .catch(error => {
+            showToast('Error adding payment. Please try again.', 'error');
+            console.error('Error:', error);
+        });
+    }
+
+    // Close modals on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closePaymentModal();
+            closePaymentConfirmModal();
+        }
+    });
+
+    // Close modals when clicking outside
+    document.getElementById('payment-modal').addEventListener('click', function(e) {
+        if (e.target === this) closePaymentModal();
+    });
+    document.getElementById('payment-confirm-modal').addEventListener('click', function(e) {
+        if (e.target === this) closePaymentConfirmModal();
+    });
+
+    // Payment form submission - show confirmation modal instead of processing
+    const paymentForm = document.getElementById('payment-form');
+    if (paymentForm) {
+        paymentForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const staff = document.getElementById('payment_staff').value.trim();
+            if (!staff) {
+                showToast('Staff name is required.', 'error');
+                document.getElementById('payment_staff').focus();
+                return;
+            }
+            // Client-side overpayment check
+            const amount = parseFloat(document.getElementById('payment_amount').value) || 0;
+            if (amount > currentOrderBalance + 0.01) {
+                showToast('Payment exceeds the outstanding balance of $' + currentOrderBalance.toFixed(2) + '.', 'error');
+                return;
+            }
+            if (!amount || amount <= 0) {
+                showToast('Please enter a valid payment amount.', 'error');
+                return;
+            }
+            // Show confirmation modal
+            showPaymentConfirmModal();
+        });
+    }
+
+    // Product stock data for checkStock (available = total minus reserved in other orders)
+    const productStockData = {
+        {% for product in products %}
+        {{ product.id }}: {{ available_stock.get(product.id, product.quantity) }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    };
+
+    // All products for the add product dropdown
+    const allProducts = [
+        {% for product in products %}
+        { id: {{ product.id }}, name: "{{ product.name }}", price: {{ product.price }}, stock: {{ available_stock.get(product.id, product.quantity) }}, maxPerOrder: {{ product.max_per_order if product.max_per_order else 'null' }}, category: "{{ product.category.name if product.category else '' }}", subcategory: "{{ product.subcategory.name if product.subcategory else '' }}" }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    // Product max per order data
+    const productMaxPerOrder = {
+        {% for product in products %}
+        {{ product.id }}: {{ product.max_per_order if product.max_per_order else 'null' }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    };
+
+    // Track persistent toasts for max per order violations
+    let activeMaxToasts = {};
+
+    // Get product ID from hidden input or select dropdown in a row
+    function getProductStock(row) {
+        const selectEl = row.querySelector('select[name="product_ids"]');
+        if (selectEl) {
+            const productId = selectEl.value;
+            if (!productId) return 0;
+            return productStockData[productId] || 0;
+        }
+        const hiddenInput = row.querySelector('input[name="product_ids"]');
+        if (!hiddenInput) return 0;
+        const productId = hiddenInput.value;
+        return productStockData[productId] || 0;
+    }
+
+    function recalcRowTotal(row) {
+        const qtyInput = row.querySelector('input[name="quantities"]');
+        const priceInput = row.querySelector('input[name="prices"]');
+        if (!qtyInput || !priceInput) return;
+        const qty = parseFloat(qtyInput.value) || 0;
+        const price = parseFloat(priceInput.value) || 0;
+        const parentId = row.getAttribute('data-parent-item-id');
+        // Update all subtotals for this item group
+        document.querySelectorAll('.item-row[data-parent-item-id="' + parentId + '"] .subtotal').forEach(function(el) {
+            el.textContent = '$ ' + price.toFixed(2);
+        });
+        recalcTotal();
+    }
+
+    function recalcTotal() {
+        let total = 0;
+        // Only process first row of each item group (has actual inputs)
+        const processedIds = {};
+        document.querySelectorAll('.item-row').forEach(row => {
+            const parentId = row.getAttribute('data-parent-item-id');
+            if (processedIds[parentId]) return;
+            const qtyInput = row.querySelector('input[name="quantities"]');
+            const priceInput = row.querySelector('input[name="prices"]');
+            if (!qtyInput || !priceInput) return;
+            processedIds[parentId] = true;
+            const qty = parseFloat(qtyInput.value) || 0;
+            const price = parseFloat(priceInput.value) || 0;
+            total += qty * price;
+        });
+        const orderTotalEl = document.getElementById('order-total');
+        if (orderTotalEl) orderTotalEl.textContent = '$ ' + total.toFixed(2);
+    }
+
+    // Calculate total quantity for a product across all rows
+    function getTotalQtyForProduct(productId) {
+        let total = 0;
+        const processedIds = {};
+        document.querySelectorAll('.item-row').forEach(function(r) {
+            const parentId = r.getAttribute('data-parent-item-id');
+            if (processedIds[parentId]) return;
+            processedIds[parentId] = true;
+            const hidden = r.querySelector('input[name="product_ids"]');
+            const select = r.querySelector('select[name="product_ids"]');
+            const qtyInput = r.querySelector('input[name="quantities"]');
+            const pid = (hidden && hidden.value) || (select && select.value);
+            if (pid && pid == productId) {
+                total += parseInt(qtyInput.value) || 0;
+            }
+        });
+        return total;
+    }
+
+    function checkStock(row) {
+        const qtyInput = row.querySelector('input[name="quantities"]');
+        const warningEl = row.querySelector('.stock-warning');
+        if (!qtyInput || !warningEl) return;
+        const stock = getProductStock(row);
+
+        // Get product ID for max per order check
+        const selectEl = row.querySelector('select[name="product_ids"]');
+        const hiddenInput = row.querySelector('input[name="product_ids"]');
+        let productId = null;
+        if (selectEl && selectEl.value) {
+            productId = selectEl.value;
+        } else if (hiddenInput && hiddenInput.value) {
+            productId = hiddenInput.value;
+        }
+
+        // Don't show warning if no product selected yet
+        if (!productId) {
+            warningEl.style.display = 'none';
+            qtyInput.style.color = '';
+            qtyInput.style.fontWeight = '';
+            recalcRowTotal(row);
+            return;
+        }
+
+        // Calculate total quantity for this product across all rows
+        const totalQty = getTotalQtyForProduct(productId);
+
+        // Check max per order limit against total
+        const maxPerOrder = productMaxPerOrder[productId];
+        if (maxPerOrder && totalQty > maxPerOrder) {
+            warningEl.textContent = '⚠ Max per order exceeded! Max: ' + maxPerOrder + ', Total: ' + totalQty;
+            warningEl.style.display = 'block';
+            qtyInput.style.color = '#e74c3c';
+            qtyInput.style.fontWeight = 'bold';
+            // Show persistent toast
+            const rowKey = row.getAttribute('data-parent-item-id') || row.getAttribute('data-item-id');
+            if (rowKey && !activeMaxToasts[rowKey]) {
+                activeMaxToasts[rowKey] = showToast('⚠ Max per order exceeded! Max: ' + maxPerOrder + ', Total across all rows: ' + totalQty, 'error', 0);
+            }
+        } else {
+            // Clear max per order styling and toast
+            if (maxPerOrder) {
+                const rowKey = row.getAttribute('data-parent-item-id') || row.getAttribute('data-item-id');
+                if (rowKey && activeMaxToasts[rowKey]) {
+                    const toastEl = activeMaxToasts[rowKey];
+                    if (toastEl && toastEl.parentNode) {
+                        toastEl.parentNode.removeChild(toastEl);
+                    }
+                    delete activeMaxToasts[rowKey];
+                }
+            }
+            // Check stock against total
+            if (totalQty > stock) {
+                warningEl.textContent = '⚠ Not enough stock! Available: ' + stock + ', Total: ' + totalQty;
+                warningEl.style.display = 'block';
+                qtyInput.style.color = '#e74c3c';
+                qtyInput.style.fontWeight = 'bold';
+            } else {
+                warningEl.style.display = 'none';
+                qtyInput.style.color = '';
+                qtyInput.style.fontWeight = '';
+            }
+        }
+        recalcRowTotal(row);
+    }
+
+    // Remove all rows for an item group with confirmation
+    function removeItemRow(btn, itemId) {
+        // Find the product name for the confirmation message
+        const firstRow = document.querySelector('.item-row[data-parent-item-id="' + itemId + '"]');
+        const productName = firstRow ? firstRow.querySelector('div > div').textContent.trim() : 'this item';
+        
+        if (!confirm('Are you sure you want to remove "' + productName + '" from this order?')) {
+            return;
+        }
+        
+        document.querySelectorAll('.item-row[data-parent-item-id="' + itemId + '"]').forEach(function(row) {
+            row.remove();
+        });
+        recalcTotal();
+    }
+
+    // Add a new product row
+    function addProductRow() {
+        const container = document.getElementById('items-container');
+        const rowId = 'new_' + Date.now();
+        const row = document.createElement('div');
+        row.className = 'item-row';
+        row.setAttribute('data-parent-item-id', rowId);
+        row.setAttribute('data-item-id', rowId);
+        row.setAttribute('data-item-qty', '1');
+        row.setAttribute('data-item-picked', '0');
+        row.style.display = 'grid';
+        row.style.gridTemplateColumns = '1fr 50px 60px 90px 100px 160px auto';
+        row.style.gap = '0.5rem';
+        row.style.marginBottom = '0.5rem';
+        row.style.alignItems = 'end';
+
+        let optionsHtml = '<option value="">Select a product...</option>';
+        allProducts.forEach(function(p) {
+            const catLabel = p.category ? ' [' + p.category + ']' : '';
+            const subLabel = p.subcategory ? ' [' + p.subcategory + ']' : '';
+            optionsHtml += '<option value="' + p.id + '" data-price="' + p.price + '" data-stock="' + p.stock + '" data-max="' + (p.maxPerOrder || '') + '">' + p.name + catLabel + subLabel + ' (Stock: ' + p.stock + ')</option>';
+        });
+
+        row.innerHTML = `
+            <div>
+                <label>Product</label>
+                <select name="product_ids" style="width: 100%;" onchange="selectProduct(this, '${rowId}')">
+                    ${optionsHtml}
+                </select>
+            </div>
+            <div>
+                <label>Max</label>
+                <div class="max-pp-display" style="padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; text-align: center; font-weight: 500; color: var(--text-muted);">-</div>
+            </div>
+            <div>
+                <label>Qty</label>
+                <input type="number" name="quantities" required min="1" value="1" style="width: 100%;" oninput="checkStock(this.closest('.item-row'));">
+            </div>
+            <div>
+                <label>Price</label>
+                <input type="hidden" name="prices" value="0">
+                <div class="price-display" style="padding: 0.5rem; font-weight: 600; white-space: nowrap;">$ 0.00</div>
+            </div>
+            <div>
+                <label>Subtotal</label>
+                <div class="subtotal" style="padding: 0.5rem; font-weight: 600; white-space: nowrap;">$ 0.00</div>
+            </div>
+            <div style="display: flex; align-items: end; justify-content: center;">
+                <div class="pickup-progress-bar" data-item-id="${rowId}" data-picked="0" data-total="1" onclick="cyclePickup(this)" style="cursor: pointer; width: 100%; padding: 0.5rem; text-align: center;" title="Click to cycle: 0/1">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">
+                        <span style="color: #95a5a6; font-size: 1.1rem;">○</span>
+                        <span style="font-size: 0.85rem; font-weight: 600; color: #95a5a6;">0/1</span>
+                    </div>
+                    <div class="pickup-bar-track" style="width: 100%; height: 4px; background: var(--border); border-radius: 2px; margin-top: 0.25rem;">
+                        <div class="pickup-bar-fill" style="width: 0%; height: 100%; background: #95a5a6; border-radius: 2px;"></div>
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: end;">
+                <button type="button" class="btn btn-danger btn-sm" onclick="removeItemRow(this, '${rowId}');">✕</button>
+            </div>
+            <div class="stock-warning" style="grid-column: 1 / -1; color: #e74c3c; font-size: 0.85rem; display: none;"></div>
+        `;
+        container.appendChild(row);
+        // Focus the product dropdown
+        row.querySelector('select').focus();
+    }
+
+    function selectProduct(selectEl, rowId) {
+        const selectedOption = selectEl.options[selectEl.selectedIndex];
+        const price = parseFloat(selectedOption.getAttribute('data-price')) || 0;
+        const maxPerOrder = selectedOption.getAttribute('data-max');
+        const row = selectEl.closest('.item-row');
+        const priceInput = row.querySelector('input[name="prices"]');
+        const priceDisplay = row.querySelector('.price-display');
+        const maxPpDisplay = row.querySelector('.max-pp-display');
+        if (priceInput) priceInput.value = price;
+        if (priceDisplay) priceDisplay.textContent = '$ ' + price.toFixed(2);
+        if (maxPpDisplay) {
+            if (maxPerOrder) {
+                maxPpDisplay.textContent = maxPerOrder;
+                maxPpDisplay.style.color = 'var(--text)';
+            } else {
+                maxPpDisplay.textContent = '∞';
+                maxPpDisplay.style.color = 'var(--text-muted)';
+            }
+        }
+        recalcRowTotal(row);
+    }
+
+    // Listen for quantity changes to recalc totals (prices are read-only)
+    document.querySelectorAll('input[name="quantities"]').forEach(input => {
+        input.addEventListener('input', () => {
+            const row = input.closest('.item-row');
+            recalcRowTotal(row);
+            checkStock(row);
+        });
+    });
+
+    // Check stock on page load for all rows
+    document.querySelectorAll('.item-row').forEach(row => checkStock(row));
+
+    // Recalculate row totals on page load to fix subtotals
+    document.querySelectorAll('.item-row').forEach(row => recalcRowTotal(row));
+
+    // Refund modal functions
+    function openRefundModal(paymentId, amount, method) {
+        document.getElementById('refund-payment-id').value = paymentId;
+        document.getElementById('refund-amount').textContent = '$ ' + parseFloat(amount).toFixed(2);
+        document.getElementById('refund-method').textContent = method.charAt(0).toUpperCase() + method.slice(1);
+        document.getElementById('refund-modal').style.display = 'flex';
+        document.getElementById('refund-staff').focus();
+    }
+
+    function closeRefundModal() {
+        document.getElementById('refund-modal').style.display = 'none';
+        document.getElementById('refund-staff').value = '';
+        document.getElementById('refund-reason').value = '';
+    }
+
+    // Close refund modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeRefundModal();
+        }
+    });
+
+    // Close refund modal on outside click
+    document.getElementById('refund-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeRefundModal();
+        }
+    });
+
+    // Refund form submission
+    document.getElementById('refund-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const paymentId = document.getElementById('refund-payment-id').value;
+        const staffName = document.getElementById('refund-staff').value.trim();
+        const reason = document.getElementById('refund-reason').value.trim();
+        if (!staffName) {
+            showToast('Staff name is required.', 'error');
+            document.getElementById('refund-staff').focus();
+            return;
+        }
+        const formData = new FormData();
+        formData.append('staff_name', staffName);
+        if (reason) {
+            formData.append('reason', reason);
+        }
+
+        fetch('/payments/' + paymentId + '/refund', {
+            method: 'POST',
+            body: formData,
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(data.message, 'success');
+                closeRefundModal();
+                // Reload the page to show updated payment history and balance
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else if (data.error) {
+                showToast(data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showToast('Failed to process refund. Please try again.', 'error');
+        });
+    });
+
+    // Add Note modal functions
+    function openAddNoteModal() {
+        document.getElementById('add-note-modal').style.display = 'flex';
+        document.getElementById('note_text').focus();
+    }
+
+    function closeAddNoteModal() {
+        document.getElementById('add-note-modal').style.display = 'none';
+        document.getElementById('note_text').value = '';
+        document.getElementById('note_staff').value = '';
+    }
+
+    // Close add note modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeAddNoteModal();
+        }
+    });
+
+    // Close add note modal on outside click
+    document.getElementById('add-note-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeAddNoteModal();
+        }
+    });
+
+    // Add note form submission
+    document.getElementById('add-note-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var noteText = document.getElementById('note_text').value.trim();
+        if (!noteText) {
+            showToast('Note text is required.', 'error');
+            document.getElementById('note_text').focus();
+            return;
+        }
+        var staffName = document.getElementById('note_staff').value.trim();
+        var formData = new FormData();
+        formData.append('note_text', noteText);
+        if (staffName) {
+            formData.append('staff_name', staffName);
+        }
+
+        fetch('/orders/{{ order.id }}/add-note', {
+            method: 'POST',
+            body: formData,
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showToast(data.error, 'error');
+            } else if (data.success) {
+                showToast('Note added successfully.', 'success');
+                closeAddNoteModal();
+                // Reload the page to show the new note
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
+        })
+        .catch(error => {
+            showToast('Failed to add note. Please try again.', 'error');
+        });
+    });
+
+    // Delete note function
+    function deleteNote(noteId) {
+        if (!confirm('Are you sure you want to delete this note?')) {
+            return;
+        }
+        fetch('/orders/{{ order.id }}/delete-note/' + noteId, {
+            method: 'POST',
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showToast(data.error, 'error');
+            } else if (data.success) {
+                showToast('Note deleted.', 'success');
+                // Remove the note from the DOM
+                var noteEl = document.querySelector('.note-item[data-note-id="' + noteId + '"]');
+                if (noteEl) {
+                    noteEl.remove();
+                    // Check if there are no more notes
+                    var notesList = document.getElementById('notes-list');
+                    if (notesList && notesList.children.length === 0) {
+                        notesList.parentElement.innerHTML = '<p style="color: var(--text-muted);">No notes yet. Click "+ Add Note" to add one.</p>';
+                    }
+                }
+            }
+        })
+        .catch(error => {
+            showToast('Failed to delete note. Please try again.', 'error');
+        });
+    }
+
+    // === Pickup Modal ===
+    var currentPickupItems = [
+        {% for item in order.items %}
+        {id: {{ item.id }}, product_name: "{{ item.product.name if item.product else 'Unknown' }}", quantity: {{ item.quantity }}, picked_up_quantity: {{ item.picked_up_quantity or 0 }}}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    function openPickupModal() {
+        document.getElementById('pickup-modal-title').textContent = 'Manage Pickup — Order #{{ order.id }}';
+        
+        var list = document.getElementById('pickup-items-list');
+        list.innerHTML = '';
+        
+        if (currentPickupItems.length === 0) {
+            list.innerHTML = '<p style="color: var(--text-muted);">No items in this order.</p>';
+        } else {
+            currentPickupItems.forEach(function(item) {
+                var row = document.createElement('div');
+                row.className = 'pickup-item-row';
+                
+                var nameSpan = document.createElement('span');
+                nameSpan.className = 'item-name';
+                nameSpan.textContent = item.product_name;
+                
+                var qtySpan = document.createElement('span');
+                qtySpan.className = 'item-qty';
+                qtySpan.textContent = '(qty: ' + item.quantity + ')';
+                
+                var picked = item.picked_up_quantity || 0;
+                var total = item.quantity;
+                
+                var controlsDiv = document.createElement('div');
+                controlsDiv.className = 'pickup-controls';
+                
+                var minusBtn = document.createElement('button');
+                minusBtn.type = 'button';
+                minusBtn.className = 'pickup-btn';
+                minusBtn.textContent = '-';
+                minusBtn.title = 'Decrease pickup';
+                minusBtn.onclick = function() { pickupAdjust(item.id, -1); };
+                
+                var progressBar = document.createElement('div');
+                progressBar.className = 'pickup-progress-bar';
+                progressBar.setAttribute('data-item-id', item.id);
+                progressBar.setAttribute('data-picked', picked);
+                progressBar.setAttribute('data-total', total);
+                
+                var icon, color;
+                if (picked === total && total > 0) { icon = '✓'; color = '#27ae60'; }
+                else if (picked > 0) { icon = '⏳'; color = '#3498db'; }
+                else { icon = '○'; color = '#95a5a6'; }
+                
+                progressBar.innerHTML = 
+                    '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+                        '<span style="font-size: 1rem; color: ' + color + '">' + icon + '</span>' +
+                        '<span style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">' + picked + '/' + total + '</span>' +
+                    '</div>' +
+                    '<div class="pickup-bar-track"><div class="pickup-bar-fill" style="width: ' + (total > 0 ? (picked / total * 100) : 0) + '%; background: ' + color + '"></div></div>';
+                
+                var plusBtn = document.createElement('button');
+                plusBtn.type = 'button';
+                plusBtn.className = 'pickup-btn';
+                plusBtn.textContent = '+';
+                plusBtn.title = 'Increase pickup';
+                plusBtn.onclick = function() { pickupAdjust(item.id, 1); };
+                
+                controlsDiv.appendChild(minusBtn);
+                controlsDiv.appendChild(progressBar);
+                controlsDiv.appendChild(plusBtn);
+                
+                row.appendChild(nameSpan);
+                row.appendChild(qtySpan);
+                row.appendChild(controlsDiv);
+                list.appendChild(row);
+            });
+        }
+        
+        // Fetch order summary
+        fetch('/orders/{{ order.id }}/summary-json')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.status === 'success') {
+                    populatePickupSummary(data);
+                }
+            })
+            .catch(function(error) {
+                console.error('Error fetching order summary:', error);
+            });
+        
+        document.getElementById('pickup-staff-name').value = '';
+        document.getElementById('pickup-modal').style.display = 'flex';
+        setTimeout(function() {
+            document.getElementById('pickup-staff-name').focus();
+        }, 100);
+    }
+
+    function closePickupModal() {
+        document.getElementById('pickup-modal').style.display = 'none';
+    }
+
+    // Close pickup modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closePickupModal();
+        }
+    });
+
+    // Close pickup modal on outside click
+    document.getElementById('pickup-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closePickupModal();
+        }
+    });
+
+    function pickupAdjust(itemId, delta) {
+        var el = document.querySelector('#pickup-items-list .pickup-progress-bar[data-item-id="' + itemId + '"]');
+        if (!el) return;
+        var picked = parseInt(el.getAttribute('data-picked')) || 0;
+        var total = parseInt(el.getAttribute('data-total')) || 0;
+        if (total === 0) return;
+        picked = Math.max(0, Math.min(total, picked + delta));
+        el.setAttribute('data-picked', picked);
+        
+        var icon, color;
+        if (picked === total && total > 0) { icon = '✓'; color = '#27ae60'; }
+        else if (picked > 0) { icon = '⏳'; color = '#3498db'; }
+        else { icon = '○'; color = '#95a5a6'; }
+        
+        el.innerHTML = 
+            '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+                '<span style="font-size: 1rem; color: ' + color + '">' + icon + '</span>' +
+                '<span style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">' + picked + '/' + total + '</span>' +
+            '</div>' +
+            '<div class="pickup-bar-track"><div class="pickup-bar-fill" style="width: ' + (total > 0 ? (picked / total * 100) : 0) + '%; background: ' + color + '"></div></div>';
+    }
+
+    function pickupMarkAll() {
+        document.querySelectorAll('#pickup-items-list .pickup-progress-bar').forEach(function(el) {
+            var total = parseInt(el.getAttribute('data-total')) || 0;
+            el.setAttribute('data-picked', total);
+            var icon = '✓', color = '#27ae60';
+            el.innerHTML = 
+                '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+                    '<span style="font-size: 1rem; color: ' + color + '">' + icon + '</span>' +
+                    '<span style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">' + total + '/' + total + '</span>' +
+                '</div>' +
+                '<div class="pickup-bar-track"><div class="pickup-bar-fill" style="width: 100%; background: ' + color + '"></div></div>';
+        });
+        showToast('All items marked as picked up.', 'info');
+    }
+
+    function pickupResetAll() {
+        document.querySelectorAll('#pickup-items-list .pickup-progress-bar').forEach(function(el) {
+            var total = parseInt(el.getAttribute('data-total')) || 0;
+            el.setAttribute('data-picked', 0);
+            var icon = '○', color = '#95a5a6';
+            el.innerHTML = 
+                '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+                    '<span style="font-size: 1rem; color: ' + color + '">' + icon + '</span>' +
+                    '<span style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">0/' + total + '</span>' +
+                '</div>' +
+                '<div class="pickup-bar-track"><div class="pickup-bar-fill" style="width: 0%; background: ' + color + '"></div></div>';
+        });
+        showToast('All pickup progress reset.', 'info');
+    }
+
+    function populatePickupSummary(data) {
+        var summaryDiv = document.getElementById('pickup-order-summary');
+        var itemsList = document.getElementById('pickup-items-summary-list');
+        itemsList.innerHTML = '';
+        data.items.forEach(function(item) {
+            var row = '<tr style="border-bottom: 1px solid var(--border);">' +
+                '<td style="padding: 0.3rem 0.5rem; font-size: 0.9rem;">' + item.product_name + '</td>' +
+                '<td style="padding: 0.3rem 0.5rem; font-size: 0.9rem; text-align: center;">' + item.quantity + '</td>' +
+                '<td style="padding: 0.3rem 0.5rem; font-size: 0.9rem; text-align: right;">$ ' + item.unit_price.toFixed(2) + '</td>' +
+                '<td style="padding: 0.3rem 0.5rem; font-size: 0.9rem; text-align: right;">$ ' + item.subtotal.toFixed(2) + '</td>' +
+                '</tr>';
+            itemsList.innerHTML += row;
+        });
+        document.getElementById('pickup-summary-total').textContent = '$ ' + data.total.toFixed(2);
+        document.getElementById('pickup-summary-deposit').textContent = '$ ' + data.deposit.toFixed(2);
+        document.getElementById('pickup-summary-balance').textContent = '$ ' + data.balance.toFixed(2);
+        summaryDiv.style.display = 'block';
+    }
+
+    function confirmPickup() {
+        var staffName = document.getElementById('pickup-staff-name').value.trim();
+        if (!staffName) {
+            showToast('Staff name is required.', 'error');
+            document.getElementById('pickup-staff-name').focus();
+            return;
+        }
+        
+        var formData = new FormData();
+        formData.append('staff_name', staffName);
+        
+        var bars = document.querySelectorAll('#pickup-items-list .pickup-progress-bar[data-item-id]');
+        bars.forEach(function(el) {
+            var itemId = el.getAttribute('data-item-id');
+            var picked = parseInt(el.getAttribute('data-picked')) || 0;
+            formData.append('item_' + itemId, picked);
+        });
+        
+        fetch('/orders/{{ order.id }}/update-item-pickup', {
+            method: 'POST',
+            body: formData,
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showToast(data.error, 'error', 30000);
+                return;
+            }
+            closePickupModal();
+            
+            // Update local data
+            if (data.items) {
+                data.items.forEach(function(item) {
+                    var localItem = currentPickupItems.find(function(li) { return li.id === item.item_id; });
+                    if (localItem) {
+                        localItem.picked_up_quantity = item.picked_up_quantity;
+                        localItem.is_fully_picked_up = item.is_fully_picked_up;
+                    }
+                });
+            }
+            
+            // Update the pickup progress display on the page
+            var pickupStatusText = document.getElementById('pickup-status-text');
+            if (pickupStatusText) {
+                if (data.is_fully_picked_up) {
+                    pickupStatusText.textContent = '✓ Fully Picked Up (' + data.pickup_progress + ')';
+                    pickupStatusText.style.color = '#27ae60';
+                } else if (data.pickup_progress.split('/')[0] > 0) {
+                    pickupStatusText.textContent = '⏳ Partially Picked Up (' + data.pickup_progress + ')';
+                    pickupStatusText.style.color = '#3498db';
+                } else {
+                    pickupStatusText.textContent = '○ Not Picked Up';
+                    pickupStatusText.style.color = '#f39c12';
+                }
+            }
+            
+            // Update inline progress bars on item rows
+            document.querySelectorAll('#items-container .pickup-progress-bar[data-item-id]').forEach(function(el) {
+                var itemId = parseInt(el.getAttribute('data-item-id'));
+                var localItem = currentPickupItems.find(function(li) { return li.id === itemId; });
+                if (localItem) {
+                    var picked = localItem.picked_up_quantity || 0;
+                    var total = localItem.quantity;
+                    el.setAttribute('data-picked', picked);
+                    var icon, color;
+                    if (picked === total && total > 0) { icon = '✓'; color = '#27ae60'; }
+                    else if (picked > 0) { icon = '⏳'; color = '#3498db'; }
+                    else { icon = '○'; color = '#95a5a6'; }
+                    el.innerHTML = 
+                        '<div style="display: flex; align-items: center; justify-content: center; gap: 0.35rem;">' +
+                            '<span class="pickup-icon" style="font-size: 1.1rem; color: ' + color + '">' + icon + '</span>' +
+                            '<span class="pickup-fraction" style="font-size: 0.85rem; font-weight: 600; color: ' + color + '">' + picked + '/' + total + '</span>' +
+                        '</div>' +
+                        '<div class="pickup-bar-track" style="width: 100%; height: 4px; background: var(--border); border-radius: 2px; margin-top: 0.25rem;">' +
+                            '<div class="pickup-bar-fill" style="width: ' + (total > 0 ? (picked / total * 100) : 0) + '%; height: 100%; background: ' + color + '; border-radius: 2px;"></div>' +
+                        '</div>';
+                    // Update hidden input
+                    var hiddenInput = el.closest('div').querySelector('input[name="picked_up_' + itemId + '"]');
+                    if (hiddenInput) hiddenInput.value = picked;
+                }
+            });
+            
+            showToast('Pickup updated: ' + data.pickup_progress, 'success');
+        })
+        .catch(error => {
+            showToast('Error updating pickup status. Please try again.', 'error');
+            console.error('Error:', error);
+        });
+    }
+</script>
+{% endblock %}

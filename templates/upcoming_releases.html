@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}All Release Dates - {{ store_settings.store_name if store_settings and store_settings.store_name else 'TCG Preorder Manager' }}{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">📅 All Release Dates</h1>
+
+<div class="card">
+    <p style="color: var(--text-muted); margin-bottom: 1rem;">
+        All inventory items with release dates, sorted from soonest to latest.
+    </p>
+
+    {% if products %}
+    <table>
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Release Date</th>
+                <th>Days Until</th>
+                <th>Max Per Order</th>
+                <th>Price</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in products %}
+            <tr>
+                <td><strong>{{ product.name }}</strong></td>
+                <td>{{ product.category.name if product.category else '-' }}</td>
+                <td>
+                    <span style="font-weight: 600;">{{ product.release_date.strftime('%b %d, %Y') }}</span>
+                </td>
+                <td>
+                    {% set days = (product.release_date - today).days %}
+                    {% if days < 0 %}
+                    <span style="color: var(--text-muted);">{{ abs(days) }} days ago</span>
+                    {% elif days == 0 %}
+                    <span style="color: var(--btn-danger); font-weight: 600;">Today!</span>
+                    {% elif days == 1 %}
+                    <span style="color: var(--btn-primary); font-weight: 600;">Tomorrow</span>
+                    {% else %}
+                    {{ days }} days
+                    {% endif %}
+                </td>
+                <td>{{ product.max_per_order if product.max_per_order else '∞' }}</td>
+                <td>$ {{ "%.2f" % product.price }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+        <p style="font-size: 1.1rem;">No release dates set yet.</p>
+        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Add release dates to your inventory items to see them here.</p>
+        <a href="/inventory" class="btn btn-secondary" style="margin-top: 1rem;">Go to Inventory</a>
+    </div>
+    {% endif %}
+</div>
+<script>
+// Auto-refresh every 5 minutes
+var refreshTimer;
+function startAutoRefresh() {
+    refreshTimer = setInterval(function() {
+        location.reload();
+    }, 5 * 60 * 1000); // 5 minutes
+}
+window.addEventListener('load', startAutoRefresh);
+window.addEventListener('beforeunload', function() {
+    if (refreshTimer) clearInterval(refreshTimer);
+});
+</script>
+{% endblock %}
