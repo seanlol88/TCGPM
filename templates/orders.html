@@ -7,9 +7,6 @@
 
 <div style="margin-bottom: 1.5rem; display: flex; gap: 0.75rem; align-items: center;">
     <a href="/orders/new" class="btn btn-primary">+ New Order</a>
-    <button type="button" class="btn btn-secondary" onclick="openCustomerOrdersModal()" title="Filter orders by customer">
-        👤 Show Customer Orders
-    </button>
     <div style="position: relative; display: inline-block;">
         <button type="button" class="btn btn-secondary" onclick="document.getElementById('export-dropdown').style.display = document.getElementById('export-dropdown').style.display === 'block' ? 'none' : 'block';" title="Export orders as PDF">
             📄 Export ▼
@@ -392,7 +389,7 @@
             <input type="text" id="pickup-staff-name" placeholder="Your name" required>
         </div>
         <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" onclick="closePickupModal()">Cancel</button>
+            <button type="button" class="btn btn-secondary" onclick="promptClosePickupModal()">Cancel</button>
             <button type="button" class="btn btn-success" onclick="confirmPickup()">Update Pickup</button>
         </div>
     </div>
@@ -528,7 +525,7 @@
             <input type="text" id="payment-staff-name" placeholder="Your name" required>
         </div>
         <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" onclick="closePaymentModal()">Cancel</button>
+            <button type="button" class="btn btn-secondary" onclick="promptClosePaymentModal()">Cancel</button>
             <button type="button" class="btn btn-primary" onclick="showPaymentConfirmModal()">Continue</button>
         </div>
     </div>
@@ -583,23 +580,6 @@
         <div class="modal-actions">
             <button type="button" class="btn btn-secondary" onclick="closeRestoreModal()">Cancel</button>
             <button type="button" class="btn btn-warning" onclick="confirmRestore()">Restore Order</button>
-        </div>
-    </div>
-</div>
-
-<!-- Customer Orders Modal -->
-<div id="customer-orders-modal" class="modal-overlay" style="display: none;">
-    <div class="modal-box">
-        <button type="button" class="modal-close" onclick="closeCustomerOrdersModal()">&times;</button>
-        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
-            <span style="font-size: 2rem;">👤</span>
-            <h3 style="margin: 0;">Show Customer Orders</h3>
-        </div>
-        <p class="info-text">Search for a customer to view all their orders.</p>
-        <div class="form-group" style="position: relative;">
-            <label for="customer-orders-search">Search Customer</label>
-            <input type="text" id="customer-orders-search" placeholder="Type to search customers..." autocomplete="off">
-            <div id="customer-orders-results" class="autocomplete-dropdown" style="top: calc(100% + 2px);"></div>
         </div>
     </div>
 </div>
@@ -801,6 +781,12 @@ function closePickupModal() {
     currentPickupOrderId = null;
 }
 
+function promptClosePickupModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closePickupModal();
+    }
+}
+
 function confirmPickup() {
     var staffName = document.getElementById('pickup-staff-name').value.trim();
     if (!staffName) {
@@ -987,6 +973,12 @@ function closePaymentModal() {
     clearOrderSummary();
 }
 
+function promptClosePaymentModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closePaymentModal();
+    }
+}
+
 function closePaymentConfirmModal() {
     document.getElementById('payment-confirm-modal').style.display = 'none';
 }
@@ -1123,101 +1115,6 @@ function confirmRestore() {
 }
 
 
-
-// Customer Orders Modal
-function openCustomerOrdersModal() {
-    document.getElementById('customer-orders-search').value = '';
-    document.getElementById('customer-orders-results').style.display = 'none';
-    document.getElementById('customer-orders-modal').style.display = 'flex';
-    setTimeout(function() {
-        document.getElementById('customer-orders-search').focus();
-    }, 100);
-}
-
-function closeCustomerOrdersModal() {
-    document.getElementById('customer-orders-modal').style.display = 'none';
-}
-
-// Customer Orders search autocomplete
-var customerOrdersSearch = document.getElementById('customer-orders-search');
-var customerOrdersResults = document.getElementById('customer-orders-results');
-
-var customerOrdersSelectedIndex = -1;
-
-function renderCustomerOrdersResults(matches) {
-    customerOrdersResults.innerHTML = '';
-    customerOrdersSelectedIndex = -1;
-    
-    if (matches.length > 0) {
-        matches.forEach(function(c, index) {
-            var div = document.createElement('div');
-            div.className = 'autocomplete-dropdown-item';
-            div.textContent = c.fullName + ' (' + c.phone + ')';
-            div.addEventListener('click', function() {
-                customerOrdersSearch.value = c.fullName;
-                customerOrdersResults.style.display = 'none';
-                closeCustomerOrdersModal();
-                window.location.href = '/orders?customer_id=' + c.id;
-            });
-            div.addEventListener('mouseenter', function() {
-                customerOrdersResults.querySelectorAll('div').forEach(function(d) { d.classList.remove('active'); });
-                div.classList.add('active');
-                customerOrdersSelectedIndex = index;
-            });
-            div.addEventListener('mouseleave', function() {
-                div.style.background = '';
-            });
-            customerOrdersResults.appendChild(div);
-        });
-        customerOrdersResults.style.display = 'block';
-    } else {
-        customerOrdersResults.style.display = 'none';
-    }
-}
-
-customerOrdersSearch.addEventListener('input', function() {
-    var query = this.value.toLowerCase().trim();
-    var matches = query.length === 0 ? customers : customers.filter(function(c) {
-        return c.fullName.toLowerCase().indexOf(query) !== -1 || c.phone.toLowerCase().indexOf(query) !== -1;
-    });
-    renderCustomerOrdersResults(matches);
-});
-
-customerOrdersSearch.addEventListener('focus', function() {
-    var query = this.value.toLowerCase().trim();
-    var matches = query.length === 0 ? customers : customers.filter(function(c) {
-        return c.fullName.toLowerCase().indexOf(query) !== -1 || c.phone.toLowerCase().indexOf(query) !== -1;
-    });
-    renderCustomerOrdersResults(matches);
-});
-
-customerOrdersSearch.addEventListener('keydown', function(e) {
-    var items = customerOrdersResults.querySelectorAll('div');
-    if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (items.length > 0) {
-            customerOrdersSelectedIndex = Math.min(customerOrdersSelectedIndex + 1, items.length - 1);
-            items.forEach(function(d, i) { d.style.background = i === customerOrdersSelectedIndex ? 'var(--th-bg)' : ''; });
-            items[customerOrdersSelectedIndex].scrollIntoView({ block: 'nearest' });
-        }
-    } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (items.length > 0) {
-            customerOrdersSelectedIndex = Math.max(customerOrdersSelectedIndex - 1, 0);
-            items.forEach(function(d, i) { d.style.background = i === customerOrdersSelectedIndex ? 'var(--th-bg)' : ''; });
-            items[customerOrdersSelectedIndex].scrollIntoView({ block: 'nearest' });
-        }
-    } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (customerOrdersSelectedIndex >= 0 && items[customerOrdersSelectedIndex]) {
-            items[customerOrdersSelectedIndex].click();
-        }
-    } else if (e.key === 'Escape') {
-        customerOrdersResults.style.display = 'none';
-        customerOrdersSelectedIndex = -1;
-    }
-});
-
 // Close modals when clicking outside
 document.addEventListener('click', function(e) {
     if (e.target.id === 'pickup-modal') {
@@ -1231,9 +1128,6 @@ document.addEventListener('click', function(e) {
     }
     if (e.target.id === 'restore-modal') {
         closeRestoreModal();
-    }
-    if (e.target.id === 'customer-orders-modal') {
-        closeCustomerOrdersModal();
     }
 });
 
@@ -1255,7 +1149,6 @@ document.addEventListener('keydown', function(e) {
         closePaymentModal();
         closePaymentConfirmModal();
         closeRestoreModal();
-        closeCustomerOrdersModal();
     }
 });
 
@@ -1644,4 +1537,27 @@ document.addEventListener('click', function(e) {
     }
 });
 </script>
+<style>
+@media (max-width: 768px) {
+    /* Filter grid — stack to 1 column on mobile */
+    .card > div[style*="grid-template-columns: 1fr 1fr 1fr 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+        gap: 1rem !important;
+        padding: 0.75rem !important;
+    }
+    /* Action bar — stack buttons */
+    h1 + div[style*="display: flex"] {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    /* Table wrapper for mobile scroll */
+    .card:has(table) {
+        overflow-x: auto;
+    }
+    /* Order detail action buttons */
+    div[style*="display: flex"] > div[style*="display: flex"]:has(.btn) {
+        flex-wrap: wrap;
+    }
+}
+</style>
 {% endblock %}

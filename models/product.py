@@ -15,9 +15,11 @@ class Product(Base):
     release_date = Column(Date, nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     subcategory_id = Column(Integer, ForeignKey("subcategories.id"), nullable=True)
+    image_url = Column(String, nullable=True, default=None)  # URL or local path for product image
 
     category = relationship("Category", backref="products")
     subcategory = relationship("Subcategory", back_populates="products")
+    distributors = relationship("Distributor", secondary="distributor_products", back_populates="products")
 
     @property
     def profit_per_unit(self):

@@ -350,6 +350,57 @@ else:
     cursor.execute("ALTER TABLE products ADD COLUMN max_per_order INTEGER")
     print("Added max_per_order column to products table.")
 
+if "image_url" in product_columns:
+    print("image_url column in products already exists. Skipping.")
+else:
+    cursor.execute("ALTER TABLE products ADD COLUMN image_url VARCHAR")
+    print("Added image_url column to products table.")
+
+# --- Logo Size for Store Settings ---
+
+cursor.execute("PRAGMA table_info(store_settings)")
+settings_columns = [row[1] for row in cursor.fetchall()]
+if "logo_size" in settings_columns:
+    print("logo_size column in store_settings already exists. Skipping.")
+else:
+    cursor.execute("ALTER TABLE store_settings ADD COLUMN logo_size INTEGER DEFAULT 40")
+    print("Added logo_size column to store_settings table.")
+
+# --- Distributors Table ---
+
+cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='distributors'")
+if cursor.fetchone():
+    print("Distributors table already exists. Skipping.")
+else:
+    cursor.execute("""
+        CREATE TABLE distributors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name VARCHAR NOT NULL,
+            store_rep VARCHAR,
+            store_rep_phone VARCHAR,
+            store_rep_email VARCHAR,
+            phone VARCHAR,
+            email VARCHAR,
+            website VARCHAR
+        )
+    """)
+    print("Created distributors table.")
+
+# --- Distributor Products Association Table ---
+
+cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='distributor_products'")
+if cursor.fetchone():
+    print("Distributor products table already exists. Skipping.")
+else:
+    cursor.execute("""
+        CREATE TABLE distributor_products (
+            product_id INTEGER NOT NULL REFERENCES products(id),
+            distributor_id INTEGER NOT NULL REFERENCES distributors(id),
+            PRIMARY KEY (product_id, distributor_id)
+        )
+    """)
+    print("Created distributor_products table.")
+
 conn.commit()
 conn.close()
 print("Migration complete!")

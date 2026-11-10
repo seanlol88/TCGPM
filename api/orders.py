@@ -41,6 +41,9 @@ def get_available_stock(db: Session, products, exclude_order_id=None):
         filter_conditions.append(Order.id != exclude_order_id)
     other_orders = db.query(Order).filter(*filter_conditions).all()
     for other_order in other_orders:
+        # Skip fully picked up orders - their stock is no longer reserved
+        if other_order.picked_up:
+            continue
         for item in other_order.items:
             unpicked = item.quantity - (item.picked_up_quantity or 0)
             if unpicked > 0:

@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+
+{% block title %}Distributors - {{ store_settings.store_name if store_settings and store_settings.store_name else 'TCG Preorder Manager' }}{% endblock %}
+
+{% block extra_style %}
+.modal-box .form-group {
+    margin-bottom: 1rem;
+}
+.modal-box .form-group > label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+.modal-box input, .modal-box select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.95rem;
+    background: var(--input-bg);
+    color: var(--text);
+    box-sizing: border-box;
+}
+.contact-link {
+    color: var(--btn-primary);
+    text-decoration: none;
+    font-size: 0.85rem;
+    margin-right: 0.75rem;
+}
+.contact-link:hover {
+    text-decoration: underline;
+}
+.distributor-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+}
+.distributor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+.distributor-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+}
+.distributor-info {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+.distributor-contacts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+}
+.products-list {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">Distributors</h1>
+
+<div style="margin-bottom: 1.5rem; display: flex; gap: 0.75rem; align-items: center;">
+    <button type="button" class="btn btn-success" onclick="openAddModal()">+ Add Distributor</button>
+</div>
+
+{% if distributors %}
+<div class="card">
+    <h2>Distributor List</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Store Rep</th>
+                <th>Rep Phone</th>
+                <th>Rep Email</th>
+                <th>General Phone</th>
+                <th>General Email</th>
+                <th>Products</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dist in distributors %}
+            <tr>
+                <td>{{ dist.id }}</td>
+                <td><strong>{{ dist.name }}</strong></td>
+                <td>{{ dist.store_rep or '-' }}</td>
+                <td>
+                    {% if dist.store_rep_phone %}
+                    <a href="tel:{{ dist.store_rep_phone }}" class="contact-link" title="Call {{ dist.store_rep or 'Store Rep' }}">📞 {{ dist.store_rep_phone }}</a>
+                    {% else %}-{% endif %}
+                </td>
+                <td>
+                    {% if dist.store_rep_email %}
+                    <a href="mailto:{{ dist.store_rep_email }}" class="contact-link" title="Email {{ dist.store_rep or 'Store Rep' }}">✉️ {{ dist.store_rep_email }}</a>
+                    {% else %}-{% endif %}
+                </td>
+                <td>
+                    {% if dist.phone %}
+                    <a href="tel:{{ dist.phone }}" class="contact-link" title="Call {{ dist.name }}">📞 {{ dist.phone }}</a>
+                    {% else %}-{% endif %}
+                </td>
+                <td>
+                    {% if dist.email %}
+                    <a href="mailto:{{ dist.email }}" class="contact-link" title="Email {{ dist.name }}">✉️ {{ dist.email }}</a>
+                    {% else %}-{% endif %}
+                </td>
+                <td>
+                    {% if dist.products %}
+                    {{ dist.products | length }} item(s)
+                    {% else %}-{% endif %}
+                </td>
+                <td>
+                    <button type="button" class="btn btn-primary btn-sm" onclick='openEditModal({{ dist.id }}, "{{ dist.name | replace('"', '\\"') }}", "{{ dist.store_rep or '' | replace('"', '\\"') }}", "{{ dist.store_rep_phone or '' | replace('"', '\\"') }}", "{{ dist.store_rep_email or '' | replace('"', '\\"') }}", "{{ dist.phone or '' | replace('"', '\\"') }}", "{{ dist.email or '' | replace('"', '\\"') }}", "{{ dist.website or '' | replace('"', '\\"') }}")'>Edit</button>
+                    <button type="button" class="icon-btn icon-btn-danger" onclick="confirmDelete({{ dist.id }}, '{{ dist.name | replace("'", "\\'") }}')" title="Delete">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card">
+    <p style="color: var(--text-muted);">No distributors yet. Click "+ Add Distributor" to add your first distributor.</p>
+</div>
+{% endif %}
+
+<!-- Add Distributor Modal -->
+<div id="add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseAddModal()">
+    <div class="modal-box">
+        <button class="modal-close" onclick="promptCloseAddModal()">&times;</button>
+        <h2>Add Distributor</h2>
+        <form id="add-distributor-form" onsubmit="submitAddDistributor(event)">
+            <div class="form-group">
+                <label for="add-name">Distributor Name *</label>
+                <input type="text" id="add-name" name="name" required placeholder="e.g. Fantasy Game Store">
+            </div>
+            <div class="form-group">
+                <label for="add-store_rep">Store Representative</label>
+                <input type="text" id="add-store_rep" name="store_rep" placeholder="e.g. John Smith">
+            </div>
+            <div class="form-group">
+                <label for="add-store_rep_phone">Rep Phone Number</label>
+                <input type="tel" id="add-store_rep_phone" name="store_rep_phone" placeholder="e.g. 0400 000 000">
+            </div>
+            <div class="form-group">
+                <label for="add-store_rep_email">Rep Email</label>
+                <input type="email" id="add-store_rep_email" name="store_rep_email" placeholder="e.g. john@fgs.com.au">
+            </div>
+            <div class="form-group">
+                <label for="add-phone">General Phone Number</label>
+                <input type="tel" id="add-phone" name="phone" placeholder="e.g. 1300 000 000">
+            </div>
+            <div class="form-group">
+                <label for="add-email">General Email</label>
+                <input type="email" id="add-email" name="email" placeholder="e.g. orders@fgs.com.au">
+            </div>
+            <div class="form-group">
+                <label for="add-website">Website</label>
+                <input type="url" id="add-website" name="website" placeholder="e.g. https://fgs.com.au">
+            </div>
+            <div class="form-group">
+                <label for="add-staff_name">Staff Name *</label>
+                <input type="text" id="add-staff_name" name="staff_name" required placeholder="Your name">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="promptCloseAddModal()">Cancel</button>
+                <button type="submit" class="btn btn-success">Add Distributor</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Distributor Modal -->
+<div id="edit-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseEditModal()">
+    <div class="modal-box">
+        <button class="modal-close" onclick="promptCloseEditModal()">&times;</button>
+        <h2>Edit Distributor</h2>
+        <form id="edit-distributor-form" onsubmit="submitEditDistributor(event)">
+            <input type="hidden" id="edit-id" name="id">
+            <div class="form-group">
+                <label for="edit-name">Distributor Name *</label>
+                <input type="text" id="edit-name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-store_rep">Store Representative</label>
+                <input type="text" id="edit-store_rep" name="store_rep">
+            </div>
+            <div class="form-group">
+                <label for="edit-store_rep_phone">Rep Phone Number</label>
+                <input type="tel" id="edit-store_rep_phone" name="store_rep_phone">
+            </div>
+            <div class="form-group">
+                <label for="edit-store_rep_email">Rep Email</label>
+                <input type="email" id="edit-store_rep_email" name="store_rep_email">
+            </div>
+            <div class="form-group">
+                <label for="edit-phone">General Phone Number</label>
+                <input type="tel" id="edit-phone" name="phone">
+            </div>
+            <div class="form-group">
+                <label for="edit-email">General Email</label>
+                <input type="email" id="edit-email" name="email">
+            </div>
+            <div class="form-group">
+                <label for="edit-website">Website</label>
+                <input type="url" id="edit-website" name="website">
+            </div>
+            <div class="form-group">
+                <label for="edit-staff_name">Staff Name *</label>
+                <input type="text" id="edit-staff_name" name="staff_name" required placeholder="Your name">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="promptCloseEditModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeDeleteModal()">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+        <div style="text-align: center; margin-bottom: 1rem;">
+            <span style="font-size: 2.5rem;">⚠️</span>
+        </div>
+        <h3 style="text-align: center; margin-bottom: 0.5rem;">Delete Distributor</h3>
+        <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.5rem;" id="delete-distributor-name"></p>
+        <p style="text-align: center; color: var(--btn-danger); font-weight: 600; margin-bottom: 1.5rem;">This action cannot be undone.</p>
+        <form id="delete-form" onsubmit="submitDelete(event)">
+            <input type="hidden" id="delete-id">
+            <div class="form-group">
+                <label for="delete-staff">Staff Name *</label>
+                <input type="text" id="delete-staff" name="staff_name" required placeholder="Your name">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: center; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                <button type="submit" class="btn btn-danger">Delete Distributor</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+var currentDeleteDistributorId = null;
+
+// Add Modal
+function openAddModal() {
+    document.getElementById('add-modal').style.display = 'flex';
+    setTimeout(function() { document.getElementById('add-name').focus(); }, 100);
+}
+
+function closeAddModal() {
+    document.getElementById('add-modal').style.display = 'none';
+    document.getElementById('add-distributor-form').reset();
+}
+
+function promptCloseAddModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeAddModal();
+    }
+}
+
+function submitAddDistributor(e) {
+    e.preventDefault();
+    var staffName = document.getElementById('add-staff_name').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        return;
+    }
+    var formData = new FormData(document.getElementById('add-distributor-form'));
+    fetch('/distributors', { method: 'POST', body: formData })
+        .then(function(r) {
+            if (r.ok || r.status === 303) {
+                closeAddModal();
+                showToast('Distributor added successfully.', 'success');
+                setTimeout(function() { location.reload(); }, 1000);
+            } else {
+                showToast('Error adding distributor.', 'error');
+            }
+        })
+        .catch(function() { showToast('Error adding distributor.', 'error'); });
+}
+
+// Edit Modal
+function openEditModal(id, name, storeRep, storeRepPhone, storeRepEmail, phone, email, website) {
+    document.getElementById('edit-id').value = id;
+    document.getElementById('edit-name').value = name;
+    document.getElementById('edit-store_rep').value = storeRep;
+    document.getElementById('edit-store_rep_phone').value = storeRepPhone;
+    document.getElementById('edit-store_rep_email').value = storeRepEmail;
+    document.getElementById('edit-phone').value = phone;
+    document.getElementById('edit-email').value = email;
+    document.getElementById('edit-website').value = website;
+    document.getElementById('edit-modal').style.display = 'flex';
+    setTimeout(function() { document.getElementById('edit-name').focus(); }, 100);
+}
+
+function closeEditModal() {
+    document.getElementById('edit-modal').style.display = 'none';
+}
+
+function promptCloseEditModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeEditModal();
+    }
+}
+
+function submitEditDistributor(e) {
+    e.preventDefault();
+    var staffName = document.getElementById('edit-staff_name').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        return;
+    }
+    var id = document.getElementById('edit-id').value;
+    var formData = new FormData(document.getElementById('edit-distributor-form'));
+    fetch('/distributors/' + id + '/edit', { method: 'POST', body: formData })
+        .then(function(r) {
+            if (r.ok || r.status === 303) {
+                closeEditModal();
+                showToast('Distributor updated successfully.', 'success');
+                setTimeout(function() { location.reload(); }, 1000);
+            } else {
+                showToast('Error updating distributor.', 'error');
+            }
+        })
+        .catch(function() { showToast('Error updating distributor.', 'error'); });
+}
+
+// Delete Modal
+function confirmDelete(distributorId, distributorName) {
+    currentDeleteDistributorId = distributorId;
+    document.getElementById('delete-distributor-name').textContent = 'Are you sure you want to delete "' + distributorName + '"?';
+    document.getElementById('delete-id').value = distributorId;
+    document.getElementById('delete-staff').value = '';
+    document.getElementById('delete-modal').style.display = 'flex';
+}
+
+function closeDeleteModal() {
+    document.getElementById('delete-modal').style.display = 'none';
+    currentDeleteDistributorId = null;
+    document.getElementById('delete-form').reset();
+}
+
+function submitDelete(e) {
+    e.preventDefault();
+    var distributorId = document.getElementById('delete-id').value;
+    var staffName = document.getElementById('delete-staff').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        return;
+    }
+    var formData = new FormData();
+    formData.append('staff_name', staffName);
+    fetch('/distributors/' + distributorId + '/delete-json', { method: 'POST', body: formData })
+        .then(function(r) { return r.json().then(function(data) { return { status: r.status, data: data }; }); })
+        .then(function(result) {
+            if (result.status === 200) {
+                closeDeleteModal();
+                showToast('Distributor "' + result.data.name + '" deleted.', 'success');
+                setTimeout(function() { location.reload(); }, 1000);
+            } else {
+                showToast('Error deleting distributor.', 'error');
+            }
+        })
+        .catch(function() { showToast('Error deleting distributor.', 'error'); });
+}
+</script>
+{% endblock %}

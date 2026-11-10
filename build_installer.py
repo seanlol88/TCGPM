@@ -14,7 +14,13 @@ Usage:
 import subprocess
 import sys
 import os
+import io
 from pathlib import Path
+
+# Fix Windows console Unicode encoding
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 PROJECT_ROOT = Path(__file__).parent
 DIST_DIR = PROJECT_ROOT / "dist"
@@ -83,15 +89,11 @@ def create_spec_file():
     """Create the PyInstaller spec file."""
     print_step(2, "Creating PyInstaller spec file")
     
-    spec_content = '''# -*- mode: python ; coding: utf-8 -*-
-
-block_cipher = None
-
-a = Analysis(
-    ['main.py'],
-    pathex=[],
-    binaries=[],
-    datas=[
+    # Build datas list dynamically - only include files that exist
+    datas_entries = []
+    
+    # Always include directories and essential files
+    for src, dst in [
         ('templates', 'templates'),
         ('static', 'static'),
         ('config.py', '.'),
@@ -101,9 +103,28 @@ a = Analysis(
         ('services', 'services'),
         ('database', 'database'),
         ('backups', 'backups'),
-        ('gmail_credentials.json', '.'),
-        ('drive_credentials.json', '.'),
-    ],
+    ]:
+        src_path = PROJECT_ROOT / src
+        if src_path.exists():
+            datas_entries.append(f"        ('{src}', '{dst}'),")
+    
+    # Optional credential files - only include if they exist
+    for cred_file in ['gmail_credentials.json', 'drive_credentials.json']:
+        cred_path = PROJECT_ROOT / cred_file
+        if cred_path.exists():
+            datas_entries.append(f"        ('{cred_file}', '.'),")
+    
+    datas_block = "[\n" + "\n".join(datas_entries) + "\n    ]" if datas_entries else "[]"
+    
+    spec_content = '''# -*- mode: python ; coding: utf-8 -*-
+
+block_cipher = None
+
+a = Analysis(
+    ['main.py'],
+    pathex=[],
+    binaries=[],
+    datas=DATAS_PLACEHOLDER,
     hiddenimports=[
         'jinja2',
         'uvicorn',
@@ -158,6 +179,7 @@ exe = EXE(
     icon='static/favicon.ico',
 )
 '''
+    spec_content = spec_content.replace('DATAS_PLACEHOLDER', datas_block)
     
     with open(SPEC_FILE, 'w', encoding='utf-8') as f:
         f.write(spec_content)
@@ -212,7 +234,7 @@ def create_inno_setup_script():
 #define MyAppExeName "TCG Preorder Manager.exe"
 
 [Setup]
-AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
+AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -224,7 +246,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=installer
 OutputBaseFilename=TCG_Preorder_Manager_Setup_{#MyAppVersion}
-SetupIconFile=static\favicon.ico
+SetupIconFile=static\\favicon.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

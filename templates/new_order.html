@@ -789,4 +789,20 @@
         }
     });
 </script>
+<style>
+@media (max-width: 768px) {
+    /* Finance grid — stack to 1 column */
+    div[style*="grid-template-columns: 1fr 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+    /* Customer form grid — stack to 1 column */
+    div[style*="grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+    /* Customer info flex row — stack */
+    .card > div[style*="display: flex"][style*="gap"] {
+        flex-direction: column !important;
+    }
+}
+</style>
 {% endblock %}

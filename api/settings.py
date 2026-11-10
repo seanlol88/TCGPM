@@ -45,6 +45,7 @@ def update_settings(
     website: str = Form(""),
     abn: str = Form(""),
     gmail_sender_email: str = Form(""),
+    logo_size: int = Form(40),
     primary_color: str = Form("#3b82f6"),
     secondary_color: str = Form("#6b7280"),
     background_color: str = Form("#f9fafb"),
@@ -64,6 +65,7 @@ def update_settings(
         settings.website = website.strip() or None
         settings.abn = abn.strip() or None
         settings.gmail_sender_email = gmail_sender_email.strip() or None
+        settings.logo_size = min(max(logo_size, 20), 80)  # Clamp between 20 and 80
         settings.primary_color = primary_color.strip() or "#3b82f6"
         settings.secondary_color = secondary_color.strip() or "#6b7280"
         settings.background_color = background_color.strip() or "#f9fafb"
@@ -159,6 +161,7 @@ def get_settings_json():
         return {
             "store_name": settings.store_name,
             "logo_path": settings.logo_path,
+            "logo_size": settings.logo_size or 40,
             "primary_color": settings.primary_color,
             "secondary_color": settings.secondary_color,
             "background_color": settings.background_color,

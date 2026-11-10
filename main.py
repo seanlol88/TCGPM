@@ -1,9 +1,11 @@
 from datetime import date as date_type, timedelta, datetime
 from fastapi import FastAPI, Request
+from fastapi.responses import Response
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from jinja2 import FileSystemLoader
 from pathlib import Path
 from sqlalchemy import func, case, distinct
 from sqlalchemy.orm import joinedload
@@ -21,6 +23,7 @@ from models.subcategory import Subcategory
 from models.payment import Payment
 from models.order_log import OrderLog
 from models.store_settings import StoreSettings
+from models.distributor import Distributor, ProductDistributor
 from api import inventory as inventory_api
 from api import customers as customers_api
 from api import orders as orders_api
@@ -32,11 +35,21 @@ from api import settings as settings_api
 from api import backups as backups_api
 from api import gmail as gmail_api
 from api import system as system_api
+from api import distributors as distributors_api
 
 app = FastAPI(title=config.APP_TITLE)
 
 # Session middleware for Google Drive OAuth2 flow
 app.add_middleware(SessionMiddleware, secret_key=config.SESSION_SECRET, max_age=3600)
+
+# Cache control middleware - prevent browser caching of all responses
+@app.middleware("http")
+async def add_cache_control_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 # Ensure database directory exists
 Path(config.DATABASE_URL.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
@@ -44,8 +57,11 @@ Path(config.DATABASE_URL.replace("sqlite:///", "")).parent.mkdir(parents=True, e
 # Initialize database tables
 init_db()
 
-# Templates
+# Templates - disable cache to always load latest version
+template_loader = FileSystemLoader(str(Path(__file__).parent / "templates"))
+template_loader.cache = False  # type: ignore
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+templates.env.loader = template_loader
 
 # Make templates available to API routes
 inventory_api.templates = templates
@@ -71,7 +87,9 @@ app.include_router(settings_api.router)
 app.include_router(backups_api.router)
 app.include_router(gmail_api.router)
 app.include_router(system_api.router)
+app.include_router(distributors_api.router)
 system_api.templates = templates
+distributors_api.templates = templates
 
 # Static files for uploaded logos
 static_dir = Path(__file__).parent / "static"
@@ -135,6 +153,9 @@ def dashboard(request: Request):
                 .all()
             )
             for order in reserved_orders:
+                # Skip fully picked up orders - their stock is no longer reserved
+                if order.picked_up:
+                    continue
                 for item in order.items:
                     if item.product and item.product.id in upcoming_product_ids:
                         unpicked = (item.quantity or 0) - (item.picked_up_quantity or 0)
@@ -223,6 +244,9 @@ def dashboard(request: Request):
         unpicked_items_count = 0
         for order in all_orders:
             if order.deleted:
+                continue
+            # Skip fully picked up orders - no unpicked items remain
+            if order.picked_up:
                 continue
             for item in order.items:
                 if item.product:
@@ -487,8 +511,8 @@ if __name__ == "__main__":
     if sys.stderr is None:
         sys.stderr = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
     
-    # Read port from store_settings or .app_port file or default to 8000
-    port = 8000
+    # Read port from store_settings or .app_port file or default to 8001
+    port = 8001
     env_file = Path(__file__).parent / ".app_port"
     if env_file.exists():
         try:

@@ -53,6 +53,7 @@
 .mgmt-square-backups { background: linear-gradient(135deg, #f59e0b, #d97706); }
 .mgmt-square-audit { background: linear-gradient(135deg, #6b7280, #4b5563); }
 .mgmt-square-system { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+.mgmt-square-images { background: linear-gradient(135deg, #ec4899, #db2777); }
 /* Inventory with categories layout */
 .inv-tabs {
     display: flex;
@@ -501,6 +502,10 @@
             <span class="square-icon">⚙️</span>
             <span class="square-label">System</span>
         </div>
+        <div class="mgmt-square mgmt-square-images" onclick="switchSection('images')" id="nav-images">
+            <span class="square-icon">🖼️</span>
+            <span class="square-label">Image Scraper</span>
+        </div>
     </div>
 
     <!-- Content Area Below Squares -->
@@ -587,6 +592,16 @@
                     <span id="logo-name" style="font-size: 0.85rem; color: var(--text-muted);"></span>
                 </label>
 
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="logo_size">Logo Size in Header: <span id="logo-size-value">{{ settings.logo_size or 40 }}</span>px</label>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <input type="range" id="logo_size_slider" min="20" max="80" value="{{ settings.logo_size or 40 }}" style="flex: 1;" oninput="updateLogoSize(this.value)">
+                        <input type="hidden" id="logo_size" name="logo_size" value="{{ settings.logo_size or 40 }}">
+                        <span style="font-size: 0.85rem; color: var(--text-muted); min-width: 30px;">20</span>
+                        <span style="font-size: 0.85rem; color: var(--text-muted); min-width: 30px; text-align: right;">80</span>
+                    </div>
+                </div>
+
                 <hr class="form-divider">
 
                 <!-- Color Scheme -->
@@ -662,7 +677,7 @@
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
                     {% if settings.logo_path %}
-                    <img src="/{{ settings.logo_path }}" alt="Logo" style="max-height: 32px; object-fit: contain;">
+                    <img src="/{{ settings.logo_path }}" alt="Logo" id="preview-logo" style="max-height: {{ settings.logo_size or 40 }}px; object-fit: contain;">
                     {% endif %}
                     <strong>{{ settings.store_name or 'Your Store Name' }}</strong>
                 </div>
@@ -785,6 +800,72 @@
             <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Restart the application. A backup will be created automatically before restarting.</p>
             <button type="button" class="btn btn-danger" onclick="openRestartModal()">🔄 Restart App</button>
         </div>
+
+        <!-- ==================== Image Scraper ==================== -->
+        <div class="admin-section" id="section-images">
+            <div class="admin-section-header">
+                <div>
+                    <h1 class="admin-section-title">Image Scraper</h1>
+                    <p class="admin-section-subtitle">Search for products and attach images from the web, a URL, or your computer.</p>
+                </div>
+            </div>
+
+            <!-- Step 1: Search Product -->
+            <div class="section-header">
+                <h2>Step 1: Find a Product</h2>
+            </div>
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+                <input type="text" id="img-search-product" placeholder="Type product name to search..." style="flex:1; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: var(--input-bg); color: var(--text);" oninput="searchProductsForImage()">
+            </div>
+            <div id="img-product-results" style="max-height: 200px; overflow-y: auto; margin-bottom: 1.5rem;"></div>
+
+            <!-- Step 2: Choose Image -->
+            <div class="section-header">
+                <h2>Step 2: Choose an Image</h2>
+            </div>
+
+            <!-- Option A: Search Images (Openverse) -->
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text);">🔍 Search Images (Openverse)</h3>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <input type="text" id="img-web-search" placeholder="Search term (e.g. Pokemon Charizard)" style="flex:1; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: var(--input-bg); color: var(--text);">
+                    <button type="button" class="btn btn-primary" onclick="searchWebImages()">Search</button>
+                </div>
+                <div id="img-web-results" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;"></div>
+            </div>
+
+            <!-- Option B: Paste URL -->
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text);">🔗 Paste Image URL</h3>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <input type="url" id="img-url-input" placeholder="https://example.com/image.jpg" style="flex:1; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: var(--input-bg); color: var(--text);">
+                    <button type="button" class="btn btn-primary" onclick="loadImageFromUrl()">Load</button>
+                </div>
+            </div>
+
+            <!-- Option C: Upload from Computer -->
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text);">📁 Upload from Computer</h3>
+                <label style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <span class="btn btn-secondary btn-sm">📁 Choose File</span>
+                    <input type="file" id="img-upload-input" accept="image/*" style="display: none;" onchange="previewUploadedImage()">
+                    <span id="img-upload-name" style="font-size: 0.85rem; color: var(--text-muted);"></span>
+                </label>
+            </div>
+
+            <!-- Image Preview -->
+            <div id="img-preview-area" style="display: none; margin-bottom: 1.5rem;">
+                <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text);">Preview</h3>
+                <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                    <img id="img-preview" src="" alt="Preview" style="max-width: 200px; max-height: 200px; object-fit: contain; border: 2px solid var(--border); border-radius: 8px;">
+                    <div>
+                        <p style="font-size: 0.85rem; color: var(--text-muted);">Image ready to attach. Select a product above, then click Attach.</p>
+                        <button type="button" class="btn btn-success" onclick="attachImageToProduct()" id="img-attach-btn" disabled>📎 Attach to Selected Product</button>
+                        <div id="img-attach-status" style="margin-top: 0.5rem; font-size: 0.85rem;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 <!-- End Management Page Card -->
@@ -826,9 +907,9 @@
 <!-- ====== Category Modals ====== -->
 
 <!-- Add Category Modal -->
-<div id="cat-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeCatAddModal()">
+<div id="cat-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseCatAddModal()">
     <div class="modal-box" style="max-width: 400px;">
-        <button class="modal-close" onclick="closeCatAddModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseCatAddModal()">&times;</button>
         <h2>Add Category</h2>
         <form id="cat-add-form" onsubmit="submitCatAdd(event)">
             <div class="form-group">
@@ -840,7 +921,7 @@
                 <input type="text" id="cat-add-staff" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeCatAddModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseCatAddModal()">Cancel</button>
                 <button type="submit" class="btn btn-success">Add Category</button>
             </div>
         </form>
@@ -848,9 +929,9 @@
 </div>
 
 <!-- Edit Category Modal -->
-<div id="cat-edit-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeCatEditModal()">
+<div id="cat-edit-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseCatEditModal()">
     <div class="modal-box" style="max-width: 400px;">
-        <button class="modal-close" onclick="closeCatEditModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseCatEditModal()">&times;</button>
         <h2>Edit Category</h2>
         <form id="cat-edit-form" onsubmit="submitCatEdit(event)">
             <input type="hidden" id="cat-edit-id">
@@ -863,7 +944,7 @@
                 <input type="text" id="cat-edit-staff" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeCatEditModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseCatEditModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
         </form>
@@ -892,9 +973,9 @@
 </div>
 
 <!-- Add Set Name Modal (for Categories tab) -->
-<div id="cat-set-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeCatSetAddModal()">
+<div id="cat-set-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseCatSetAddModal()">
     <div class="modal-box" style="max-width: 400px;">
-        <button class="modal-close" onclick="closeCatSetAddModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseCatSetAddModal()">&times;</button>
         <h2>Add Set Name</h2>
         <form id="cat-set-add-form" onsubmit="submitCatSetAdd(event)">
             <input type="hidden" id="cat-set-add-category_id" name="category_id">
@@ -911,7 +992,7 @@
                 <input type="text" id="cat-set-add-staff" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeCatSetAddModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseCatSetAddModal()">Cancel</button>
                 <button type="submit" class="btn btn-success">Add Set Name</button>
             </div>
         </form>
@@ -919,9 +1000,9 @@
 </div>
 
 <!-- Edit Set Name Modal (for Categories tab) -->
-<div id="cat-set-edit-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeCatSetEditModal()">
+<div id="cat-set-edit-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseCatSetEditModal()">
     <div class="modal-box" style="max-width: 400px;">
-        <button class="modal-close" onclick="closeCatSetEditModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseCatSetEditModal()">&times;</button>
         <h2>Edit Set Name</h2>
         <form id="cat-set-edit-form" onsubmit="submitCatSetEdit(event)">
             <input type="hidden" id="cat-set-edit-id">
@@ -935,7 +1016,7 @@
                 <input type="text" id="cat-set-edit-staff" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeCatSetEditModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseCatSetEditModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
         </form>
@@ -968,7 +1049,7 @@
 <!-- Add Product Modal -->
 <div id="inv-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptInvCloseAddModal()">
     <div class="modal-box">
-        <button class="modal-close" onclick="closeInvAddModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseInvAddModal()">&times;</button>
         <h2>Add Product</h2>
         <form id="inv-add-form" onsubmit="submitInvAdd(event)">
             <div class="form-group">
@@ -1016,7 +1097,7 @@
                 <input type="text" id="inv-add-staff_name" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeInvAddModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseInvAddModal()">Cancel</button>
                 <button type="submit" class="btn btn-success">Add Product</button>
             </div>
         </form>
@@ -1026,7 +1107,7 @@
 <!-- Edit Product Modal -->
 <div id="inv-edit-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptInvCloseEditModal()">
     <div class="modal-box">
-        <button class="modal-close" onclick="closeInvEditModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseInvEditModal()">&times;</button>
         <h2>Edit Product</h2>
         <form id="inv-edit-form" onsubmit="submitInvEdit(event)">
             <input type="hidden" id="inv-edit-id" name="id">
@@ -1075,7 +1156,7 @@
                 <input type="text" id="inv-edit-staff_name" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeInvEditModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseInvEditModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
         </form>
@@ -1107,9 +1188,9 @@
 </div>
 
 <!-- Add Category Modal (for Inventory) -->
-<div id="inv-cat-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeInvCatAddModal()">
+<div id="inv-cat-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseInvCatAddModal()">
     <div class="modal-box" style="max-width: 400px;">
-        <button class="modal-close" onclick="closeInvCatAddModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseInvCatAddModal()">&times;</button>
         <h2>Add Category</h2>
         <form id="inv-cat-add-form" onsubmit="submitInvCatAdd(event)">
             <div class="form-group">
@@ -1121,7 +1202,7 @@
                 <input type="text" id="inv-cat-add-staff" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeInvCatAddModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseInvCatAddModal()">Cancel</button>
                 <button type="submit" class="btn btn-success">Add Category</button>
             </div>
         </form>
@@ -1129,9 +1210,9 @@
 </div>
 
 <!-- Add Set Name Modal (for Inventory) -->
-<div id="inv-set-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeInvSetAddModal()">
+<div id="inv-set-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseInvSetAddModal()">
     <div class="modal-box" style="max-width: 400px;">
-        <button class="modal-close" onclick="closeInvSetAddModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseInvSetAddModal()">&times;</button>
         <h2>Add Set Name</h2>
         <form id="inv-set-add-form" onsubmit="submitInvSetAdd(event)">
             <div class="form-group">
@@ -1149,7 +1230,7 @@
                 <input type="text" id="inv-set-add-staff" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeInvSetAddModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseInvSetAddModal()">Cancel</button>
                 <button type="submit" class="btn btn-success">Add Set Name</button>
             </div>
         </form>
@@ -1491,6 +1572,11 @@ function closeCatAddModal() {
     document.getElementById('cat-add-modal').style.display = 'none';
     document.getElementById('cat-add-form').reset();
 }
+function promptCloseCatAddModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeCatAddModal();
+    }
+}
 function submitCatAdd(e) {
     e.preventDefault();
     var formData = new FormData();
@@ -1514,6 +1600,11 @@ function openCatEditModal(id, name) {
 function closeCatEditModal() {
     document.getElementById('cat-edit-modal').style.display = 'none';
     document.getElementById('cat-edit-form').reset();
+}
+function promptCloseCatEditModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeCatEditModal();
+    }
 }
 function submitCatEdit(e) {
     e.preventDefault();
@@ -1565,6 +1656,11 @@ function closeCatSetAddModal() {
     document.getElementById('cat-set-add-modal').style.display = 'none';
     document.getElementById('cat-set-add-form').reset();
 }
+function promptCloseCatSetAddModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeCatSetAddModal();
+    }
+}
 function submitCatSetAdd(e) {
     e.preventDefault();
     var categoryId = document.getElementById('cat-set-add-category_id').value;
@@ -1593,6 +1689,11 @@ function openCatSetEditModal(id, categoryId, name) {
 function closeCatSetEditModal() {
     document.getElementById('cat-set-edit-modal').style.display = 'none';
     document.getElementById('cat-set-edit-form').reset();
+}
+function promptCloseCatSetEditModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeCatSetEditModal();
+    }
 }
 function submitCatSetEdit(e) {
     e.preventDefault();
@@ -1647,6 +1748,11 @@ function closeInvAddModal() {
     document.getElementById('inv-add-modal').style.display = 'none';
     document.getElementById('inv-add-form').reset();
 }
+function promptCloseInvAddModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeInvAddModal();
+    }
+}
 function promptInvCloseAddModal() {
     if (confirm('Are you sure you want to discard your changes?')) closeInvAddModal();
 }
@@ -1683,6 +1789,11 @@ function openInvEditModal(id, name, quantity, price, costPrice, maxPerOrder, rel
 }
 function closeInvEditModal() {
     document.getElementById('inv-edit-modal').style.display = 'none';
+}
+function promptCloseInvEditModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeInvEditModal();
+    }
 }
 function promptInvCloseEditModal() {
     if (confirm('Are you sure you want to discard your changes?')) closeInvEditModal();
@@ -1754,6 +1865,11 @@ function closeInvCatAddModal() {
     document.getElementById('inv-cat-add-modal').style.display = 'none';
     document.getElementById('inv-cat-add-form').reset();
 }
+function promptCloseInvCatAddModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeInvCatAddModal();
+    }
+}
 function submitInvCatAdd(e) {
     e.preventDefault();
     var name = document.getElementById('inv-cat-add-name').value.trim();
@@ -1782,6 +1898,11 @@ function openInvSetAddModal() {
 function closeInvSetAddModal() {
     document.getElementById('inv-set-add-modal').style.display = 'none';
     document.getElementById('inv-set-add-form').reset();
+}
+function promptCloseInvSetAddModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeInvSetAddModal();
+    }
 }
 function submitInvSetAdd(e) {
     e.preventDefault();
@@ -2081,11 +2202,23 @@ function submitRestart(e) {
         .catch(function() { showToast('Error restarting app.', 'error'); });
 }
 
-// Escape key closes all modals
+// Escape key closes all modals with confirmation for add/edit modals
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        var modals = document.querySelectorAll('.modal-overlay');
-        for (var i = 0; i < modals.length; i++) modals[i].style.display = 'none';
+        // Close add/edit modals with confirmation
+        if (document.getElementById('cat-add-modal').style.display === 'flex') promptCloseCatAddModal();
+        else if (document.getElementById('cat-edit-modal').style.display === 'flex') promptCloseCatEditModal();
+        else if (document.getElementById('cat-set-add-modal').style.display === 'flex') promptCloseCatSetAddModal();
+        else if (document.getElementById('cat-set-edit-modal').style.display === 'flex') promptCloseCatSetEditModal();
+        else if (document.getElementById('inv-add-modal').style.display === 'flex') promptCloseInvAddModal();
+        else if (document.getElementById('inv-edit-modal').style.display === 'flex') promptCloseInvEditModal();
+        else if (document.getElementById('inv-cat-add-modal').style.display === 'flex') promptCloseInvCatAddModal();
+        else if (document.getElementById('inv-set-add-modal').style.display === 'flex') promptCloseInvSetAddModal();
+        else {
+            // Close other modals without confirmation
+            var modals = document.querySelectorAll('.modal-overlay');
+            for (var i = 0; i < modals.length; i++) modals[i].style.display = 'none';
+        }
     }
 });
 
@@ -2110,6 +2243,16 @@ window.addEventListener('beforeunload', function(e) {
     if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ''; }
 });
 
+// Logo size live preview
+function updateLogoSize(size) {
+    document.getElementById('logo_size').value = size;
+    document.getElementById('logo-size-value').textContent = size;
+    var previewLogo = document.getElementById('preview-logo');
+    if (previewLogo) {
+        previewLogo.style.maxHeight = size + 'px';
+    }
+}
+
 // Restore last active section on page load
 (function() {
     var saved = localStorage.getItem('mgmtSection');
@@ -2117,5 +2260,286 @@ window.addEventListener('beforeunload', function(e) {
         switchSection(saved);
     }
 })();
+
+// ===== Image Scraper Functions =====
+
+var selectedProductId = null;
+var selectedProductName = null;
+var selectedImageData = null; // base64 or local path
+var selectedImageType = null; // 'url', 'upload', 'web'
+
+function searchProductsForImage() {
+    var query = document.getElementById('img-search-product').value.trim();
+    var resultsDiv = document.getElementById('img-product-results');
+    
+    if (query.length < 2) {
+        resultsDiv.innerHTML = '';
+        return;
+    }
+    
+    fetch('/inventory/search-products?q=' + encodeURIComponent(query))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.products && data.products.length > 0) {
+                resultsDiv.innerHTML = data.products.map(function(p) {
+                    var hasImage = p.image_url ? '<span style="color: #10b981;">📷 Has image</span>' : '<span style="color: #f59e0b;">No image</span>';
+                    return '<div class="img-product-item" onclick="selectProductForImage(' + p.id + ', \'' + escapeHtml(p.name) + '\')" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.35rem; cursor: pointer; background: var(--bg); transition: background 0.15s;" onmouseover="this.style.background=\'rgba(59,130,246,0.1)\'" onmouseout="this.style.background=\'var(--bg)\'">' +
+                        '<span style="font-size: 0.9rem; font-weight: 500;">' + escapeHtml(p.name) + '</span>' +
+                        '<span style="font-size: 0.8rem;">' + hasImage + '</span>' +
+                        '</div>';
+                }).join('');
+            } else {
+                resultsDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No products found.</p>';
+            }
+        })
+        .catch(function() {
+            resultsDiv.innerHTML = '<p style="color: #e74c3c; font-size: 0.85rem;">Error searching products.</p>';
+        });
+}
+
+function selectProductForImage(productId, productName) {
+    selectedProductId = productId;
+    selectedProductName = productName;
+    
+    // Highlight selected product
+    var items = document.querySelectorAll('.img-product-item');
+    for (var i = 0; i < items.length; i++) {
+        items[i].style.borderColor = 'var(--border)';
+        items[i].style.background = 'var(--bg)';
+    }
+    event.currentTarget.style.borderColor = 'var(--primary)';
+    event.currentTarget.style.background = 'var(--primary)';
+    event.currentTarget.style.color = 'white';
+    
+    // Enable attach button if image is ready
+    var attachBtn = document.getElementById('img-attach-btn');
+    if (selectedImageData) {
+        attachBtn.disabled = false;
+        attachBtn.textContent = '📎 Attach to: ' + productName;
+    }
+    
+    // Show status
+    document.getElementById('img-attach-status').innerHTML = '<span style="color: var(--primary);">Selected: ' + escapeHtml(productName) + '</span>';
+}
+
+function searchWebImages() {
+    var query = document.getElementById('img-web-search').value.trim();
+    var resultsDiv = document.getElementById('img-web-results');
+    
+    if (!query) {
+        showToast('Please enter a search term.', 'error');
+        return;
+    }
+    
+    resultsDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">Searching...</p>';
+    
+    var formData = new FormData();
+    formData.append('q', query);
+    
+    fetch('/inventory/search-images', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.images && data.images.length > 0) {
+                resultsDiv.innerHTML = data.images.map(function(img) {
+                    return '<img src="' + escapeHtml(img.thumbnail) + '" alt="Search result" style="width: 120px; height: 120px; object-fit: cover; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; transition: border-color 0.15s;" onclick="selectWebImage(\'' + escapeHtml(img.url) + '\', this)" onmouseover="this.style.borderColor=var(--primary)" onmouseout="this.style.borderColor=var(--border)">';
+                }).join('');
+            } else if (data.message) {
+                resultsDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">' + escapeHtml(data.message) + '</p>';
+            } else {
+                resultsDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No images found.</p>';
+            }
+        })
+        .catch(function() {
+            resultsDiv.innerHTML = '<p style="color: #e74c3c; font-size: 0.85rem;">Error searching images. Please check your internet connection and try again.</p>';
+        });
+}
+
+function selectWebImage(url, elem) {
+    // Highlight selected image
+    var images = document.querySelectorAll('#img-web-results img');
+    for (var i = 0; i < images.length; i++) {
+        images[i].style.borderColor = 'var(--border)';
+    }
+    elem.style.borderColor = 'var(--primary)';
+    
+    // Download the image
+    var formData = new FormData();
+    formData.append('image_url', url);
+    
+    fetch('/inventory/download-image', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                selectedImageData = data.local_path;
+                selectedImageType = 'url';
+                showImagePreview(selectedImageData);
+            } else {
+                showToast(data.message || 'Failed to download image.', 'error');
+            }
+        })
+        .catch(function() {
+            showToast('Error downloading image.', 'error');
+        });
+}
+
+function loadImageFromUrl() {
+    var url = document.getElementById('img-url-input').value.trim();
+    
+    if (!url) {
+        showToast('Please enter an image URL.', 'error');
+        return;
+    }
+    
+    var formData = new FormData();
+    formData.append('image_url', url);
+    
+    fetch('/inventory/download-image', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                selectedImageData = data.local_path;
+                selectedImageType = 'url';
+                showImagePreview(selectedImageData);
+            } else {
+                showToast(data.message || 'Failed to download image.', 'error');
+            }
+        })
+        .catch(function() {
+            showToast('Error downloading image.', 'error');
+        });
+}
+
+function previewUploadedImage() {
+    var fileInput = document.getElementById('img-upload-input');
+    var nameSpan = document.getElementById('img-upload-name');
+    
+    if (fileInput.files && fileInput.files[0]) {
+        nameSpan.textContent = fileInput.files[0].name;
+        
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            selectedImageData = e.target.result; // base64 data URL for preview
+            selectedImageType = 'upload';
+            showImagePreview(selectedImageData);
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+    }
+}
+
+function showImagePreview(src) {
+    var previewArea = document.getElementById('img-preview-area');
+    var previewImg = document.getElementById('img-preview');
+    var attachBtn = document.getElementById('img-attach-btn');
+    
+    previewImg.src = src;
+    previewArea.style.display = 'block';
+    
+    if (selectedProductId) {
+        attachBtn.disabled = false;
+        attachBtn.textContent = '📎 Attach to: ' + selectedProductName;
+    } else {
+        attachBtn.disabled = true;
+        attachBtn.textContent = '📎 Attach to Selected Product';
+    }
+    
+    // Clear status
+    document.getElementById('img-attach-status').innerHTML = '<span style="color: #10b981;">Image loaded successfully.</span>';
+}
+
+function attachImageToProduct() {
+    if (!selectedProductId) {
+        showToast('Please select a product first.', 'error');
+        return;
+    }
+    if (!selectedImageData) {
+        showToast('Please select an image first.', 'error');
+        return;
+    }
+    
+    var attachBtn = document.getElementById('img-attach-btn');
+    attachBtn.disabled = true;
+    attachBtn.textContent = '⏳ Attaching...';
+    
+    if (selectedImageType === 'upload') {
+        // Upload file from input
+        var fileInput = document.getElementById('img-upload-input');
+        if (!fileInput.files || !fileInput.files[0]) {
+            showToast('File not found.', 'error');
+            attachBtn.disabled = false;
+            attachBtn.textContent = '📎 Attach to Selected Product';
+            return;
+        }
+        
+        var formData = new FormData();
+        formData.append('image', fileInput.files[0]);
+        
+        fetch('/inventory/' + selectedProductId + '/upload-image', { method: 'POST', body: formData })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.status === 'success') {
+                    showToast('Image attached to ' + selectedProductName + '!', 'success');
+                    resetImageScraper();
+                } else {
+                    showToast(data.message || 'Failed to attach image.', 'error');
+                    attachBtn.disabled = false;
+                    attachBtn.textContent = '📎 Attach to Selected Product';
+                }
+            })
+            .catch(function() {
+                showToast('Error attaching image.', 'error');
+                attachBtn.disabled = false;
+                attachBtn.textContent = '📎 Attach to Selected Product';
+            });
+    } else {
+        // URL-based image (already downloaded)
+        var formData = new FormData();
+        formData.append('image_url', selectedImageData);
+        
+        fetch('/inventory/' + selectedProductId + '/scrape-image', { method: 'POST', body: formData })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.status === 'success') {
+                    showToast('Image attached to ' + selectedProductName + '!', 'success');
+                    resetImageScraper();
+                } else {
+                    showToast(data.message || 'Failed to attach image.', 'error');
+                    attachBtn.disabled = false;
+                    attachBtn.textContent = '📎 Attach to Selected Product';
+                }
+            })
+            .catch(function() {
+                showToast('Error attaching image.', 'error');
+                attachBtn.disabled = false;
+                attachBtn.textContent = '📎 Attach to Selected Product';
+            });
+    }
+}
+
+function resetImageScraper() {
+    selectedProductId = null;
+    selectedProductName = null;
+    selectedImageData = null;
+    selectedImageType = null;
+    
+    document.getElementById('img-search-product').value = '';
+    document.getElementById('img-product-results').innerHTML = '';
+    document.getElementById('img-web-search').value = '';
+    document.getElementById('img-web-results').innerHTML = '';
+    document.getElementById('img-url-input').value = '';
+    document.getElementById('img-upload-input').value = '';
+    document.getElementById('img-upload-name').textContent = '';
+    document.getElementById('img-preview-area').style.display = 'none';
+    document.getElementById('img-attach-status').innerHTML = '';
+    
+    var attachBtn = document.getElementById('img-attach-btn');
+    attachBtn.disabled = true;
+    attachBtn.textContent = '📎 Attach to Selected Product';
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 </script>
 {% endblock %}

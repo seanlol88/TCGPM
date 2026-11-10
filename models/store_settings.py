@@ -36,6 +36,7 @@ class StoreSettings(Base):
     backup_last_message = Column(String, nullable=True, default=None)
     # System settings
     app_port = Column(Integer, nullable=True, default=8000)  # Port the app runs on
+    logo_size = Column(Integer, nullable=True, default=40)  # Header logo size in pixels (max-height), max 80
 
     @classmethod
     def get(cls, db):
