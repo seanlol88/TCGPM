@@ -1,5 +1,5 @@
 {
-    "version": "1.0.0",
-    "download_url": "https://github.com/seanlol88/TCGPM/releases/download/v1.0.0/TCG_Preorder_Manager_Setup_1.0.0.exe",
-    "release_notes": "Version 1.0.0 - Initial Release:\n\n- Full order management with customer tracking\n- Product catalog with categories and subcategories\n- Item management with set/booster support\n- Finance tracking with profit/loss reports\n- Pickup scheduling and management\n- Email notifications via Gmail\n- Google Drive backup integration\n- Custom store branding with logo upload\n- System tray integration with favicon\n- Update check system\n- Export and import data (CSV/JSON)\n- Dark mode support\n- Auto-start on Windows login"
+    "version": "1.1.0",
+    "download_url": "https://github.com/seanlol88/TCGPM/releases/download/v1.1.0/TCG_Preorder_Manager_Setup_1.1.0.exe",
+    "release_notes": "Version 1.1.0:\n\n- Update check system linked to GitHub repository\n- Favicon package integrated across web app and system tray\n- Bug fixes and improvements"
 }
