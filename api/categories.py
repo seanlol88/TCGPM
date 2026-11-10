@@ -6,6 +6,7 @@ from models.base import SessionLocal
 from models.category import Category
 from models.subcategory import Subcategory
 from services.audit import log_change
+from api.auth import get_staff_name
 
 router = APIRouter()
 templates: Jinja2Templates = None  # type: ignore[assignment]
@@ -30,9 +31,11 @@ def get_categories(request: Request):
 
 
 @router.post("/categories")
-def add_category(request: Request, name: str = Form(...), staff_name: str = Form(None)):
+def add_category(request: Request, name: str = Form(...), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         category = Category(name=name.strip())
         db.add(category)
         db.flush()
@@ -53,9 +56,11 @@ def add_category(request: Request, name: str = Form(...), staff_name: str = Form
 
 
 @router.post("/categories/{category_id}/edit")
-def edit_category(category_id: int, request: Request, name: str = Form(...), staff_name: str = Form(None)):
+def edit_category(category_id: int, request: Request, name: str = Form(...), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         category = db.query(Category).filter(Category.id == category_id).first()
         if category:
             category.name = name.strip()
@@ -67,9 +72,11 @@ def edit_category(category_id: int, request: Request, name: str = Form(...), sta
 
 
 @router.post("/categories/{category_id}/delete")
-def delete_category(category_id: int, request: Request, staff_name: str = Form(None)):
+def delete_category(category_id: int, request: Request, staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         category = db.query(Category).filter(Category.id == category_id).first()
         if category:
             cname = category.name
@@ -82,9 +89,11 @@ def delete_category(category_id: int, request: Request, staff_name: str = Form(N
 
 
 @router.post("/categories/add-json")
-def add_category_json(request: Request, name: str = Form(...), staff_name: str = Form(None)):
+def add_category_json(request: Request, name: str = Form(...), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         name = name.strip()
         if not name:
             raise HTTPException(status_code=400, detail="Category name is required.")
@@ -111,9 +120,11 @@ def add_category_json(request: Request, name: str = Form(...), staff_name: str =
 
 
 @router.post("/categories/{category_id}/edit-json")
-def edit_category_json(category_id: int, request: Request, name: str = Form(...), staff_name: str = Form(None)):
+def edit_category_json(category_id: int, request: Request, name: str = Form(...), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         name = name.strip()
         if not name:
             raise HTTPException(status_code=400, detail="Category name is required.")
@@ -139,9 +150,11 @@ def edit_category_json(category_id: int, request: Request, name: str = Form(...)
 
 
 @router.post("/categories/{category_id}/delete-json")
-def delete_category_json(category_id: int, request: Request, staff_name: str = Form(None)):
+def delete_category_json(category_id: int, request: Request, staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         category = db.query(Category).filter(Category.id == category_id).first()
         if not category:
             raise HTTPException(status_code=404, detail="Category not found.")

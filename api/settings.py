@@ -4,7 +4,9 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from models.base import SessionLocal
 from models.store_settings import StoreSettings
+from models.staff import Staff, DEFAULT_PERMISSIONS, ADMIN_PERMISSIONS
 from services.audit import log_change
+from api.auth import get_staff_name, require_permission
 import os
 import urllib.request
 import json
@@ -26,9 +28,11 @@ def get_settings(request: Request):
     db = SessionLocal()
     try:
         settings = StoreSettings.get(db)
+        staff_list = db.query(Staff).order_by(Staff.name.asc()).all()
         return templates.TemplateResponse("settings.html", {
             "request": request,
             "settings": settings,
+            "staff_list": staff_list,
         })
     finally:
         db.close()
@@ -220,3 +224,165 @@ def check_for_updates():
             "update_available": False,
             "message": f"Could not check for updates: {str(e)}",
         }
+
+
+# ---- Staff Management Endpoints ----
+
+
+@router.post("/settings/staff/add")
+def add_staff(request: Request, name: str = Form(...), pin: str = Form(...)):
+    """Add a new staff member. Requires manage_staff permission."""
+    denial = require_permission(request, "manage_staff")
+    if denial:
+        return denial
+    staff_name = get_staff_name(request)
+    pin = pin.strip()
+    name = name.strip()
+    if len(pin) != 4 or not pin.isdigit():
+        return RedirectResponse(url="/settings?error=PIN must be exactly 4 digits.", status_code=303)
+    db = SessionLocal()
+    try:
+        # Check for duplicate name or PIN
+        existing = db.query(Staff).filter(
+            (Staff.name.ilike(name)) | (Staff.pin == pin)
+        ).first()
+        if existing:
+            if existing.name.ilike(name):
+                return RedirectResponse(url="/settings?error=A staff member with this name already exists.", status_code=303)
+            else:
+                return RedirectResponse(url="/settings?error=This PIN is already in use.", status_code=303)
+        staff = Staff(name=name, pin=pin, active=True)
+        db.add(staff)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(url=f"/settings?error={str(e)}", status_code=303)
+    finally:
+        db.close()
+    log_change("settings", None, f"Added staff member: {name} (PIN: {pin})", staff_name)
+    return RedirectResponse(url="/settings?success=1", status_code=303)
+
+
+@router.post("/settings/staff/{staff_id}/toggle")
+def toggle_staff(request: Request, staff_id: int):
+    """Toggle a staff member's active status. Requires manage_staff permission."""
+    denial = require_permission(request, "manage_staff")
+    if denial:
+        return denial
+    staff_name = get_staff_name(request)
+    db = SessionLocal()
+    try:
+        staff = db.query(Staff).filter(Staff.id == staff_id).first()
+        if not staff:
+            return RedirectResponse(url="/settings?error=Staff member not found.", status_code=303)
+        staff_name_target = staff.name
+        staff.active = not staff.active
+        db.commit()
+        status = "activated" if staff.active else "deactivated"
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(url=f"/settings?error={str(e)}", status_code=303)
+    finally:
+        db.close()
+    log_change("settings", None, f"{status.title()} staff member: {staff_name_target}", staff_name)
+    return RedirectResponse(url="/settings?success=1", status_code=303)
+
+
+@router.post("/settings/staff/{staff_id}/change-pin")
+def change_staff_pin(request: Request, staff_id: int, pin: str = Form(...)):
+    """Change a staff member's PIN. Requires manage_staff permission."""
+    denial = require_permission(request, "manage_staff")
+    if denial:
+        return denial
+    staff_name = get_staff_name(request)
+    pin = pin.strip()
+    if len(pin) != 4 or not pin.isdigit():
+        return RedirectResponse(url="/settings?error=PIN must be exactly 4 digits.", status_code=303)
+    db = SessionLocal()
+    try:
+        staff = db.query(Staff).filter(Staff.id == staff_id).first()
+        if not staff:
+            return RedirectResponse(url="/settings?error=Staff member not found.", status_code=303)
+        # Check for duplicate PIN
+        existing = db.query(Staff).filter(Staff.pin == pin, Staff.id != staff_id).first()
+        if existing:
+            return RedirectResponse(url="/settings?error=This PIN is already in use.", status_code=303)
+        staff_name_target = staff.name
+        staff.pin = pin
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(url=f"/settings?error={str(e)}", status_code=303)
+    finally:
+        db.close()
+    log_change("settings", None, f"Changed PIN for staff member: {staff_name_target}", staff_name)
+    return RedirectResponse(url="/settings?success=1", status_code=303)
+
+
+@router.post("/settings/staff/{staff_id}/permissions")
+def save_staff_permissions(request: Request, staff_id: int):
+    """Save updated permissions for a staff member. Requires manage_staff permission."""
+    denial = require_permission(request, "manage_staff")
+    if denial:
+        return denial
+    staff_name = get_staff_name(request)
+    db = SessionLocal()
+    try:
+        staff = db.query(Staff).filter(Staff.id == staff_id).first()
+        if not staff:
+            return RedirectResponse(url="/settings?error=Staff member not found.", status_code=303)
+        staff_name_target = staff.name
+
+        # Collect all permission keys from the form
+        perms = {}
+        for key in DEFAULT_PERMISSIONS:
+            val = request.form.get(key, "off")
+            perms[key] = val == "on"
+
+        # Prevent removing manage_staff from the only admin (id=1)
+        if staff_id == 1 and not perms.get("manage_staff", False):
+            return RedirectResponse(
+                url="/settings?error=Cannot remove staff management permission from the primary admin account.",
+                status_code=303,
+            )
+
+        staff.permissions = json.dumps(perms)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(url=f"/settings?error={str(e)}", status_code=303)
+    finally:
+        db.close()
+    log_change("settings", None, f"Updated permissions for staff member: {staff_name_target}", staff_name)
+    return RedirectResponse(url="/settings?success=1", status_code=303)
+
+
+@router.post("/settings/timeout")
+def save_global_timeout(request: Request, timeout_enabled: str = Form("off"), timeout_seconds: int = Form(1800)):
+    """Save global timeout settings. Requires manage_settings permission."""
+    denial = require_permission(request, "manage_settings")
+    if denial:
+        return denial
+    staff_name = get_staff_name(request)
+    db = SessionLocal()
+    try:
+        settings = StoreSettings.get(db)
+
+        # Validate timeout seconds (min 30, max 86400)
+        if timeout_seconds < 30:
+            timeout_seconds = 30
+        elif timeout_seconds > 86400:
+            timeout_seconds = 86400
+
+        enabled = timeout_enabled == "on"
+        settings.timeout_enabled = enabled
+        settings.timeout_seconds = timeout_seconds
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        return RedirectResponse(url=f"/settings?error={str(e)}", status_code=303)
+    finally:
+        db.close()
+    status = "enabled" if enabled else "disabled"
+    log_change("settings", None, f"{status.title()} global session timeout ({timeout_seconds}s)", staff_name)
+    return RedirectResponse(url="/settings?success=1", status_code=303)

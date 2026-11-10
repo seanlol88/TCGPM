@@ -6,6 +6,7 @@ from models.base import SessionLocal
 from models.subcategory import Subcategory
 from models.category import Category
 from services.audit import log_change
+from api.auth import get_staff_name
 
 router = APIRouter()
 templates: Jinja2Templates = None  # type: ignore[assignment]
@@ -30,9 +31,11 @@ def get_subcategories(request: Request):
 
 
 @router.post("/subcategories")
-def add_subcategory(request: Request, name: str = Form(...), category_id: str = Form(""), staff_name: str = Form(None)):
+def add_subcategory(request: Request, name: str = Form(...), category_id: str = Form(""), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         cat_id = int(category_id) if category_id.strip() else None
         sub = Subcategory(name=name.strip(), category_id=cat_id)
         db.add(sub)
@@ -58,9 +61,11 @@ def add_subcategory(request: Request, name: str = Form(...), category_id: str = 
 
 
 @router.post("/subcategories/{subcategory_id}/edit")
-def edit_subcategory(subcategory_id: int, request: Request, name: str = Form(...), category_id: str = Form(""), staff_name: str = Form(None)):
+def edit_subcategory(subcategory_id: int, request: Request, name: str = Form(...), category_id: str = Form(""), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         sub = db.query(Subcategory).filter(Subcategory.id == subcategory_id).first()
         if sub:
             sub.name = name.strip()
@@ -73,9 +78,11 @@ def edit_subcategory(subcategory_id: int, request: Request, name: str = Form(...
 
 
 @router.post("/subcategories/{subcategory_id}/delete")
-def delete_subcategory(subcategory_id: int, request: Request, staff_name: str = Form(None)):
+def delete_subcategory(subcategory_id: int, request: Request, staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         sub = db.query(Subcategory).filter(Subcategory.id == subcategory_id).first()
         if sub:
             sname = sub.name
@@ -88,9 +95,11 @@ def delete_subcategory(subcategory_id: int, request: Request, staff_name: str = 
 
 
 @router.post("/subcategories/add-json")
-def add_subcategory_json(request: Request, name: str = Form(...), category_id: str = Form(""), staff_name: str = Form(None)):
+def add_subcategory_json(request: Request, name: str = Form(...), category_id: str = Form(""), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         name = name.strip()
         cat_id = int(category_id) if category_id.strip() else None
         if not name:
@@ -124,9 +133,11 @@ def add_subcategory_json(request: Request, name: str = Form(...), category_id: s
 
 
 @router.post("/subcategories/{subcategory_id}/edit-json")
-def edit_subcategory_json(subcategory_id: int, request: Request, name: str = Form(...), category_id: str = Form(""), staff_name: str = Form(None)):
+def edit_subcategory_json(subcategory_id: int, request: Request, name: str = Form(...), category_id: str = Form(""), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         name = name.strip()
         cat_id = int(category_id) if category_id.strip() else None
         if not name:
@@ -159,9 +170,11 @@ def edit_subcategory_json(subcategory_id: int, request: Request, name: str = For
 
 
 @router.post("/subcategories/{subcategory_id}/delete-json")
-def delete_subcategory_json(subcategory_id: int, request: Request, staff_name: str = Form(None)):
+def delete_subcategory_json(subcategory_id: int, request: Request, staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         sub = db.query(Subcategory).filter(Subcategory.id == subcategory_id).first()
         if not sub:
             raise HTTPException(status_code=404, detail="Set Name not found.")

@@ -1,5 +1,5 @@
 {
-    "version": "1.0.0",
-    "download_url": "https://github.com/seanlol88/TCGPM/releases/download/v1.0.0/TCG_Preorder_Manager_Setup_1.0.0.exe",
-    "release_notes": "Initial release of TCG Preorder Manager."
+    "version": "1.2.0",
+    "download_url": "https://github.com/seanlol88/TCGPM/releases/download/v1.2.0/TCG_Preorder_Manager_Setup_1.2.0.exe",
+    "release_notes": "Version 1.2.0:\n\nNew Features:\n- Staff login system with 4-digit PIN authentication\n- Role-based staff permissions with 19 granular permission keys\n- First-run setup wizard (6 steps: Admin PIN, Staff, Port, Store Info, Gmail, Recovery Token)\n- PIN recovery system with one-time-use secure tokens\n- Universal session timeout with auto-logout\n- Image upload/URL/search for product management\n- Mobile responsive design with hamburger menu and 44x44px touch targets\n- Desktop shortcut auto-creation on install\n- Distributor management system\n- Database reset and delete options in system settings\n- Backup modals integrated into settings page\n\nBug Fixes:\n- Fixed Add Category and Add Set Name buttons on product management page\n- Fixed image upload/URL/search fields missing from Add/Edit Product modals\n- Fixed setup wizard skipping steps after Admin PIN creation\n- Fixed recovery token generation during setup wizard\n- Fixed session timeout CSS alignment in system settings\n- Fixed backup and import buttons on settings backups page\n\nImprovements:\n- All audit log actions now tracked by logged-in staff member name\n- Settings page reorganized with permission-gated sections\n- Login page shows session expired message on timeout\n- Recovery page accessible without authentication\n- Migration scripts for all database schema changes"
 }

@@ -463,12 +463,30 @@
         <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation" onclick="document.getElementById('nav-menu').classList.toggle('open');">☰</button>
         <ul id="nav-menu">
             <li><a href="/">Dashboard</a></li>
+            {% if current_permissions.create_orders or current_permissions.view_orders %}
             <li><a href="/orders/new">New Order</a></li>
+            {% endif %}
+            {% if current_permissions.view_orders %}
             <li><a href="/orders">Orders</a></li>
+            {% endif %}
+            {% if current_permissions.view_customers %}
             <li><a href="/customers">Customers</a></li>
+            {% endif %}
+            {% if current_permissions.view_inventory %}
             <li><a href="/upcoming-releases">Release Dates</a></li>
+            {% endif %}
+            {% if current_permissions.view_distributors %}
             <li><a href="/distributors">Distributors</a></li>
+            {% endif %}
+            {% if current_permissions.manage_settings or current_permissions.manage_staff or current_permissions.manage_backups or current_permissions.view_audit_log or current_permissions.manage_system %}
             <li><a href="/settings">⚙️ Settings</a></li>
+            {% endif %}
+            {% if current_staff_name %}
+            <li style="display: flex; align-items: center; gap: 0.75rem;">
+                <span style="font-size: 0.85rem; opacity: 0.8;">👤 {{ current_staff_name }}</span>
+                <a href="/logout" style="font-size: 0.85rem; color: #e74c3c; text-decoration: none;">Logout</a>
+            </li>
+            {% endif %}
             <li class="theme-toggle">
                 <span>🌙</span>
                 <label class="switch">

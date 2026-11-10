@@ -78,8 +78,7 @@
                 </select>
             </div>
             <div>
-                <label for="staff_name">Staff Name *</label>
-                <input type="text" id="staff_name" name="staff_name" placeholder="Your name" required style="width: 100%;">
+                <input type="hidden" name="staff_name" value="{{ current_staff_name or "" }}">
             </div>
         </div>
 

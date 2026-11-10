@@ -8,6 +8,7 @@ from models.product import Product
 from models.category import Category
 from models.subcategory import Subcategory
 from services.audit import log_change
+from api.auth import get_staff_name
 import os
 import urllib.request
 import uuid
@@ -259,9 +260,11 @@ def get_inventory(request: Request, search: str = ""):
 
 
 @router.post("/inventory")
-def add_product(request: Request, name: str = Form(...), quantity: int = Form(...), price: float = Form(...), cost_price: float = Form(0.0), max_per_order: str = Form(""), release_date: str = Form(""), category_id: str = Form(""), subcategory_id: str = Form(""), image_url: str = Form(""), image: UploadFile = File(None), staff_name: str = Form(None)):
+def add_product(request: Request, name: str = Form(...), quantity: int = Form(...), price: float = Form(...), cost_price: float = Form(0.0), max_per_order: str = Form(""), release_date: str = Form(""), category_id: str = Form(""), subcategory_id: str = Form(""), image_url: str = Form(""), image: UploadFile = File(None), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         cat_id = int(category_id) if category_id.strip() else None
         sub_id = int(subcategory_id) if subcategory_id.strip() else None
         rel_date = date_type.fromisoformat(release_date) if release_date.strip() else None
@@ -291,9 +294,11 @@ def add_product(request: Request, name: str = Form(...), quantity: int = Form(..
 
 
 @router.post("/inventory/{product_id}/edit")
-def edit_product(product_id: int, request: Request, name: str = Form(...), quantity: int = Form(...), price: float = Form(...), cost_price: float = Form(0.0), max_per_order: str = Form(""), release_date: str = Form(""), category_id: str = Form(""), subcategory_id: str = Form(""), image_url: str = Form(""), image: UploadFile = File(None), remove_image: str = Form("no"), staff_name: str = Form(None)):
+def edit_product(product_id: int, request: Request, name: str = Form(...), quantity: int = Form(...), price: float = Form(...), cost_price: float = Form(0.0), max_per_order: str = Form(""), release_date: str = Form(""), category_id: str = Form(""), subcategory_id: str = Form(""), image_url: str = Form(""), image: UploadFile = File(None), remove_image: str = Form("no"), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         product = db.query(Product).filter(Product.id == product_id).first()
         if product:
             product.name = name
@@ -332,9 +337,11 @@ def edit_product(product_id: int, request: Request, name: str = Form(...), quant
 
 
 @router.post("/inventory/{product_id}/quantity")
-def update_quantity(product_id: int, request: Request, quantity: int = Form(...), staff_name: str = Form(None)):
+def update_quantity(product_id: int, request: Request, quantity: int = Form(...), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         product = db.query(Product).filter(Product.id == product_id).first()
         if product:
             product.quantity = quantity
@@ -346,9 +353,11 @@ def update_quantity(product_id: int, request: Request, quantity: int = Form(...)
 
 
 @router.post("/inventory/add-json")
-def add_product_json(request: Request, name: str = Form(...), quantity: int = Form(...), price: float = Form(...), cost_price: float = Form(0.0), max_per_order: str = Form(""), release_date: str = Form(""), category_id: str = Form(""), subcategory_id: str = Form(""), image_url: str = Form(""), image: UploadFile = File(None), staff_name: str = Form(None)):
+def add_product_json(request: Request, name: str = Form(...), quantity: int = Form(...), price: float = Form(...), cost_price: float = Form(0.0), max_per_order: str = Form(""), release_date: str = Form(""), category_id: str = Form(""), subcategory_id: str = Form(""), image_url: str = Form(""), image: UploadFile = File(None), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         cat_id = int(category_id) if category_id.strip() else None
         sub_id = int(subcategory_id) if subcategory_id.strip() else None
         rel_date = date_type.fromisoformat(release_date) if release_date.strip() else None
@@ -389,9 +398,11 @@ def add_product_json(request: Request, name: str = Form(...), quantity: int = Fo
 
 
 @router.post("/inventory/{product_id}/edit-json")
-def edit_product_json(product_id: int, request: Request, name: str = Form(...), quantity: int = Form(...), price: float = Form(...), cost_price: float = Form(0.0), max_per_order: str = Form(""), release_date: str = Form(""), category_id: str = Form(""), subcategory_id: str = Form(""), image_url: str = Form(""), image: UploadFile = File(None), remove_image: str = Form("no"), staff_name: str = Form(None)):
+def edit_product_json(product_id: int, request: Request, name: str = Form(...), quantity: int = Form(...), price: float = Form(...), cost_price: float = Form(0.0), max_per_order: str = Form(""), release_date: str = Form(""), category_id: str = Form(""), subcategory_id: str = Form(""), image_url: str = Form(""), image: UploadFile = File(None), remove_image: str = Form("no"), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         product = db.query(Product).filter(Product.id == product_id).first()
         if product:
             product.name = name
@@ -444,9 +455,11 @@ def edit_product_json(product_id: int, request: Request, name: str = Form(...), 
 
 
 @router.post("/inventory/{product_id}/delete")
-def delete_product(product_id: int, request: Request, staff_name: str = Form(None)):
+def delete_product(product_id: int, request: Request, staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         product = db.query(Product).filter(Product.id == product_id).first()
         if product:
             pname = product.name
@@ -459,11 +472,12 @@ def delete_product(product_id: int, request: Request, staff_name: str = Form(Non
 
 
 @router.post("/inventory/{product_id}/delete-json")
-def delete_product_json(product_id: int, request: Request, staff_name: str = Form(None)):
+def delete_product_json(product_id: int, request: Request, staff_name: str = Form("")):
     """AJAX endpoint for deleting a product with confirmation modal."""
     db = SessionLocal()
-    pname = None
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         product = db.query(Product).filter(Product.id == product_id).first()
         if product:
             pname = product.name
@@ -498,9 +512,11 @@ def get_upcoming_releases(request: Request):
 
 
 @router.post("/inventory/bulk-delete")
-def bulk_delete_products(request: Request, product_ids: str = Form(...), staff_name: str = Form(None)):
+def bulk_delete_products(request: Request, product_ids: str = Form(...), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         ids = [int(x.strip()) for x in product_ids.split(",") if x.strip()]
         count = 0
         names = []
@@ -519,9 +535,11 @@ def bulk_delete_products(request: Request, product_ids: str = Form(...), staff_n
 
 
 @router.post("/inventory/bulk-change-category")
-def bulk_change_category(request: Request, product_ids: str = Form(...), category_id: str = Form(""), subcategory_id: str = Form(""), staff_name: str = Form(None)):
+def bulk_change_category(request: Request, product_ids: str = Form(...), category_id: str = Form(""), subcategory_id: str = Form(""), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         ids = [int(x.strip()) for x in product_ids.split(",") if x.strip()]
         cat_id = int(category_id) if category_id.strip() else None
         sub_id = int(subcategory_id) if subcategory_id.strip() else None

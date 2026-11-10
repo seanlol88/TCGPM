@@ -11,6 +11,7 @@ from models.order_log import OrderLog
 from models.product import Product
 from models.category import Category
 from models.subcategory import Subcategory
+from api.auth import get_staff_name
 
 router = APIRouter()
 templates: Jinja2Templates = None  # type: ignore[assignment]
@@ -45,17 +46,12 @@ def add_payment(
     order_id: int,
     amount: float = Form(...),
     payment_type: str = Form(...),
-    staff_name: str = Form(...),
+    staff_name: str = Form(""),
 ):
     db = SessionLocal()
     try:
-        if not staff_name or not staff_name.strip():
-            order = db.query(Order).filter(Order.id == order_id).first()
-            return templates.TemplateResponse("order_detail.html", {
-                "request": request,
-                "order": order,
-                "error": "Staff name is required.",
-            })
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         order = (
             db.query(Order)
             .options(joinedload(Order.customer))
@@ -187,12 +183,12 @@ def add_payment_json(
     order_id: int,
     amount: float = Form(...),
     payment_type: str = Form(...),
-    staff_name: str = Form(...),
+    staff_name: str = Form(""),
 ):
     db = SessionLocal()
     try:
-        if not staff_name or not staff_name.strip():
-            return JSONResponse(content={"error": "Staff name is required."}, status_code=400)
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         order = (
             db.query(Order)
             .options(joinedload(Order.customer))

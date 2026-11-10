@@ -12,6 +12,7 @@ from models.subcategory import Subcategory
 from models.payment import Payment
 from models.order_log import OrderLog
 from models.order_note import OrderNote
+from api.auth import get_staff_name
 
 router = APIRouter()
 templates: Jinja2Templates = None  # type: ignore[assignment]
@@ -92,23 +93,10 @@ def create_order(
     prices: list = Form(...),
     deposit: float = Form(0.0),
     payment_method: str = Form("cash"),
-    staff_name: str = Form(...),
 ):
     db = SessionLocal()
     try:
-        if not staff_name or not staff_name.strip():
-            products = db.query(Product).options(joinedload(Product.category), joinedload(Product.subcategory).joinedload(Subcategory.category)).filter(Product.quantity > 0).order_by(Product.name.asc()).all()
-            categories = db.query(Category).order_by(Category.name.asc()).all()
-            subcategories = db.query(Subcategory).options(joinedload(Subcategory.category)).order_by(Subcategory.category_id.asc(), Subcategory.name.asc()).all()
-            return templates.TemplateResponse("new_order.html", {
-                "request": request,
-                "customers": db.query(Customer).order_by(Customer.last_name.asc(), Customer.first_name.asc()).all(),
-                "products": products,
-                "categories": categories,
-                "subcategories": subcategories,
-                "error": "Staff name is required.",
-                "success": None,
-            })
+        staff_name = get_staff_name(request)
         customer = db.query(Customer).filter(Customer.id == customer_id).first()
         if not customer:
             products = db.query(Product).options(joinedload(Product.category), joinedload(Product.subcategory).joinedload(Subcategory.category)).filter(Product.quantity > 0).order_by(Product.name.asc()).all()
@@ -318,13 +306,11 @@ def create_order_json(
     prices: list = Form(...),
     deposit: float = Form(0.0),
     payment_method: str = Form("cash"),
-    staff_name: str = Form(...),
 ):
     """Create order via AJAX and return JSON with order summary."""
     db = SessionLocal()
     try:
-        if not staff_name or not staff_name.strip():
-            return JSONResponse(content={"error": "Staff name is required."}, status_code=400)
+        staff_name = get_staff_name(request)
         customer = db.query(Customer).filter(Customer.id == customer_id).first()
         if not customer:
             return JSONResponse(content={"error": "Customer not found."}, status_code=404)
@@ -1419,13 +1405,13 @@ def add_payment_to_order(
     order_id: int,
     amount: float = Form(...),
     payment_type: str = Form("cash"),
-    staff_name: str = Form(...),
+    staff_name: str = Form(""),
 ):
     """Add a payment to an order via AJAX from the order history page."""
     db = SessionLocal()
     try:
-        if not staff_name or not staff_name.strip():
-            return JSONResponse(content={"error": "Staff name is required."}, status_code=400)
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             return JSONResponse(content={"error": "Order not found."}, status_code=404)
@@ -1484,11 +1470,11 @@ def add_payment_to_order(
 
 
 @router.post("/orders/{order_id}/delete")
-def delete_order(request: Request, order_id: int, staff_name: str = Form(...)):
+def delete_order(request: Request, order_id: int, staff_name: str = Form("")):
     db = SessionLocal()
     try:
-        if not staff_name or not staff_name.strip():
-            return JSONResponse(content={"error": "Staff name is required."}, status_code=400)
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
 
         order = (
             db.query(Order)
@@ -1527,12 +1513,12 @@ def delete_order(request: Request, order_id: int, staff_name: str = Form(...)):
 
 
 @router.post("/orders/{order_id}/delete-json")
-def delete_order_json(request: Request, order_id: int, staff_name: str = Form(...)):
+def delete_order_json(request: Request, order_id: int, staff_name: str = Form("")):
     """AJAX endpoint for soft-deleting an order with confirmation modal."""
     db = SessionLocal()
     try:
-        if not staff_name or not staff_name.strip():
-            return JSONResponse(content={"error": "Staff name is required."}, status_code=400)
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
 
         order = (
             db.query(Order)
@@ -1571,12 +1557,12 @@ def delete_order_json(request: Request, order_id: int, staff_name: str = Form(..
 
 
 @router.post("/orders/{order_id}/restore")
-def restore_order(request: Request, order_id: int, staff_name: str = Form(...)):
+def restore_order(request: Request, order_id: int, staff_name: str = Form("")):
     """Restore a soft-deleted order."""
     db = SessionLocal()
     try:
-        if not staff_name or not staff_name.strip():
-            return JSONResponse(content={"error": "Staff name is required."}, status_code=400)
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
 
         order = (
             db.query(Order)
@@ -1708,10 +1694,12 @@ def order_history(request: Request, category_ids: str = "", subcategory_ids: str
 
 
 @router.post("/orders/{order_id}/add-note")
-def add_note_to_order(request: Request, order_id: int, note_text: str = Form(...), staff_name: str = Form(None)):
+def add_note_to_order(request: Request, order_id: int, note_text: str = Form(...), staff_name: str = Form("")):
     """Add a note to an order via AJAX."""
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             return JSONResponse(content={"error": "Order not found."}, status_code=404)

@@ -130,7 +130,14 @@ def run_tray_icon():
 
 
 def start_tray():
-    """Start the system tray icon in a background thread."""
+    """Start the system tray icon in a background thread and create desktop shortcut."""
+    # Create desktop shortcut on startup
+    try:
+        from services.desktop_shortcut import create_desktop_shortcut
+        create_desktop_shortcut()
+    except Exception as e:
+        print(f"Warning: Could not create desktop shortcut: {e}")
+
     if not HAS_PYSTRAY:
         return
     tray_thread = threading.Thread(target=run_tray_icon, daemon=True)

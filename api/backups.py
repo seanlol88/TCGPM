@@ -27,6 +27,7 @@ from services.backup import (
     ensure_backup_dir,
 )
 from services.audit import log_change
+from api.auth import get_staff_name
 
 router = APIRouter()
 templates: Jinja2Templates = None  # type: ignore[assignment]
@@ -83,6 +84,8 @@ def open_backup_folder():
 @router.post("/backups/run")
 def run_manual_backup(request: Request, staff_name: str = Form(""), notes: str = Form("")):
     """Trigger a manual backup."""
+    if not staff_name.strip():
+        staff_name = get_staff_name(request)
     result = create_backup(notes=notes.strip() if notes else "")
     
     log_change(
@@ -101,6 +104,8 @@ def run_manual_backup(request: Request, staff_name: str = Form(""), notes: str =
 @router.post("/backups/run-json")
 def run_manual_backup_json(request: Request, staff_name: str = Form(""), notes: str = Form("")):
     """Trigger a manual backup and return JSON."""
+    if not staff_name.strip():
+        staff_name = get_staff_name(request)
     result = create_backup(notes=notes.strip() if notes else "")
     
     log_change(
@@ -143,9 +148,8 @@ def delete_local_backup_endpoint(request: Request, filename: str = Form("")):
 @router.post("/backups/import")
 def import_backup_endpoint(request: Request, backup: UploadFile = File(None), staff_name: str = Form("")):
     """Import a database from an uploaded backup file."""
-    # Validate staff name
-    if not staff_name or not staff_name.strip():
-        return JSONResponse(status_code=400, content={"status": "error", "message": "Staff name is required."})
+    if not staff_name.strip():
+        staff_name = get_staff_name(request)
     
     # Validate file upload
     if not backup or not backup.filename:
@@ -207,7 +211,7 @@ def delete_google_backup_endpoint(request: Request, file_id: str = Form("")):
 def restore_local_backup_endpoint(request: Request, filename: str = Form(""), staff_name: str = Form("")):
     """Restore the database from a local backup file."""
     if not staff_name.strip():
-        return JSONResponse(status_code=400, content={"status": "error", "message": "Staff name is required."})
+        staff_name = get_staff_name(request)
     
     result = restore_local_backup(filename)
     
@@ -228,7 +232,7 @@ def restore_local_backup_endpoint(request: Request, filename: str = Form(""), st
 def restore_google_backup_endpoint(request: Request, file_id: str = Form(""), staff_name: str = Form("")):
     """Restore the database from a Google Drive backup file."""
     if not staff_name.strip():
-        return JSONResponse(status_code=400, content={"status": "error", "message": "Staff name is required."})
+        staff_name = get_staff_name(request)
     
     result = restore_google_drive_backup(file_id)
     

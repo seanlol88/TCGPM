@@ -14,7 +14,7 @@ GMAIL_TOKEN_FILE = os.getenv("GMAIL_TOKEN_FILE", str(BASE_DIR / "gmail_token.jso
 
 # App settings
 APP_TITLE = "TCG Preorder Manager"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.2.0"
 SESSION_SECRET = os.getenv("SESSION_SECRET", "tcg-preorder-secret-key-change-in-production")
 
 # Update check - host a version.json file at this URL to enable update checks

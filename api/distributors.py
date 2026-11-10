@@ -6,6 +6,7 @@ from models.base import SessionLocal
 from models.distributor import Distributor
 from models.product import Product
 from services.audit import log_change
+from api.auth import get_staff_name
 
 router = APIRouter()
 templates: Jinja2Templates = None  # type: ignore[assignment]
@@ -39,10 +40,12 @@ def add_distributor(
     phone: str = Form(""),
     email: str = Form(""),
     website: str = Form(""),
-    staff_name: str = Form(None),
+    staff_name: str = Form(""),
 ):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         distributor = Distributor(
             name=name.strip(),
             store_rep=store_rep.strip() or None,
@@ -73,10 +76,12 @@ def edit_distributor(
     phone: str = Form(""),
     email: str = Form(""),
     website: str = Form(""),
-    staff_name: str = Form(None),
+    staff_name: str = Form(""),
 ):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         distributor = db.query(Distributor).filter(Distributor.id == distributor_id).first()
         if distributor:
             distributor.name = name.strip()
@@ -94,10 +99,12 @@ def edit_distributor(
 
 
 @router.post("/distributors/{distributor_id}/delete")
-def delete_distributor(distributor_id: int, request: Request, staff_name: str = Form(None)):
+def delete_distributor(distributor_id: int, request: Request, staff_name: str = Form("")):
     db = SessionLocal()
     dname = None
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         distributor = db.query(Distributor).filter(Distributor.id == distributor_id).first()
         if distributor:
             dname = distributor.name
@@ -111,11 +118,13 @@ def delete_distributor(distributor_id: int, request: Request, staff_name: str = 
 
 
 @router.post("/distributors/{distributor_id}/delete-json")
-def delete_distributor_json(distributor_id: int, request: Request, staff_name: str = Form(None)):
+def delete_distributor_json(distributor_id: int, request: Request, staff_name: str = Form("")):
     """AJAX endpoint for deleting a distributor."""
     db = SessionLocal()
     dname = None
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         distributor = db.query(Distributor).filter(Distributor.id == distributor_id).first()
         if distributor:
             dname = distributor.name
@@ -134,10 +143,12 @@ def assign_product_to_distributor(
     distributor_id: int,
     request: Request,
     product_id: int = Form(...),
-    staff_name: str = Form(None),
+    staff_name: str = Form(""),
 ):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         distributor = db.query(Distributor).filter(Distributor.id == distributor_id).first()
         product = db.query(Product).filter(Product.id == product_id).first()
         if distributor and product:
@@ -155,10 +166,12 @@ def unassign_product_from_distributor(
     distributor_id: int,
     request: Request,
     product_id: int = Form(...),
-    staff_name: str = Form(None),
+    staff_name: str = Form(""),
 ):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         distributor = db.query(Distributor).filter(Distributor.id == distributor_id).first()
         product = db.query(Product).filter(Product.id == product_id).first()
         if distributor and product:

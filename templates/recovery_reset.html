@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TCG Preorder Manager — Reset PINs</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --primary-hover: #2980b9;
+            --success: #27ae60;
+            --danger: #e74c3c;
+            --bg: #f5f5f5;
+            --bg-card: #ffffff;
+            --text: #333333;
+            --text-muted: #7f8c8d;
+            --border: #ddd;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+        .header p {
+            color: var(--text-muted);
+        }
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+        }
+        .card .description {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            font-size: 0.9rem;
+            margin-bottom: 0.35rem;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 0.65rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+        .staff-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+        .staff-name {
+            flex: 1;
+            font-weight: 500;
+        }
+        .staff-pin-input {
+            width: 100px !important;
+            text-align: center;
+            font-size: 1.2rem !important;
+            letter-spacing: 0.3rem;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        .btn-success:hover {
+            background: #219a52;
+        }
+        .btn-secondary {
+            background: var(--text-muted);
+            color: white;
+        }
+        .btn-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1.5rem;
+            gap: 1rem;
+        }
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        .info-box {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 1.5rem 0;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid var(--border);
+        }
+        .divider span {
+            padding: 0 1rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎴 TCG Preorder Manager</h1>
+            <p>Reset Staff PINs</p>
+        </div>
+
+        {% if error %}
+        <div class="error-message">{{ error }}</div>
+        {% endif %}
+
+        <div class="card">
+            <h2>Set New PINs</h2>
+            <p class="description">Choose how you'd like to reset the staff PINs. You can set individual PINs or let the system generate random ones.</p>
+
+            <div class="info-box">
+                ⚠️ <strong>Warning:</strong> After resetting, the recovery token will be invalidated. You'll need to generate a new one from Settings after logging in.
+            </div>
+
+            <!-- Option 1: Set individual PINs -->
+            <h3 style="font-size: 1rem; margin-bottom: 1rem;">Option 1: Set Individual PINs</h3>
+            <form method="post" action="/recovery/reset" id="individualForm">
+                <input type="hidden" name="action" value="reset_individual">
+                {% for staff in staff_list %}
+                <div class="staff-row">
+                    <span class="staff-name">{{ staff.name }}</span>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="text" 
+                               name="pin_{{ staff.id }}" 
+                               maxlength="4" 
+                               pattern="[0-9]{4}" 
+                               inputmode="numeric"
+                               placeholder="••••" 
+                               class="staff-pin-input"
+                               title="New PIN for {{ staff.name }}">
+                    </div>
+                </div>
+                {% endfor %}
+                <div class="btn-row">
+                    <div></div>
+                    <button type="submit" class="btn btn-primary">Set These PINs</button>
+                </div>
+            </form>
+
+            <div class="divider"><span>or</span></div>
+
+            <!-- Option 2: Generate random PINs -->
+            <h3 style="font-size: 1rem; margin-bottom: 1rem;">Option 2: Generate Random PINs</h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+                The system will generate random 4-digit PINs for all staff members. The new PINs will be displayed after resetting.
+            </p>
+            <form method="post" action="/recovery/reset" id="randomForm">
+                <input type="hidden" name="action" value="reset_all">
+                <div class="btn-row">
+                    <div></div>
+                    <button type="submit" class="btn btn-success" onclick="return confirm('This will generate random PINs for all staff. The new PINs will be shown once — make sure to save them. Continue?');">
+                        Generate Random PINs
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
