@@ -75,4 +75,21 @@
     <p style="color: var(--text-muted);">No product sets yet. Add your first product set above (e.g., "Starter Deck", "Booster Box", "Sleeves").</p>
     {% endif %}
 </div>
+<style>
+@media (max-width: 768px) {
+    /* Form grid — stack to 1 column */
+    div[style*="grid-template-columns: 2fr 1.5fr auto"] {
+        grid-template-columns: 1fr !important;
+    }
+    /* Inline edit form — stack vertically */
+    .inline-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .inline-form input,
+    .inline-form select {
+        width: 100% !important;
+    }
+}
+</style>
 {% endblock %}

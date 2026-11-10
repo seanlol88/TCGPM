@@ -5,6 +5,7 @@ from models.base import SessionLocal
 from models.customer import Customer
 from models.customer_credit import CustomerCredit
 from services.audit import log_change
+from api.auth import get_staff_name
 
 router = APIRouter()
 templates: Jinja2Templates = None  # type: ignore[assignment]
@@ -41,9 +42,11 @@ def get_customers(request: Request, search: str = None):
 
 
 @router.post("/customers")
-def add_customer(request: Request, first_name: str = Form(...), last_name: str = Form(...), phone: str = Form(...), email: str = Form(None), staff_name: str = Form(None)):
+def add_customer(request: Request, first_name: str = Form(...), last_name: str = Form(...), phone: str = Form(...), email: str = Form(None), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         # Check for duplicate phone
         existing = db.query(Customer).filter(Customer.phone == phone).first()
         if existing:
@@ -73,9 +76,11 @@ def add_customer(request: Request, first_name: str = Form(...), last_name: str =
 
 
 @router.post("/customers/{customer_id}/edit")
-def edit_customer(customer_id: int, request: Request, first_name: str = Form(...), last_name: str = Form(...), phone: str = Form(...), email: str = Form(None), staff_name: str = Form(None)):
+def edit_customer(customer_id: int, request: Request, first_name: str = Form(...), last_name: str = Form(...), phone: str = Form(...), email: str = Form(None), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         customer = db.query(Customer).filter(Customer.id == customer_id).first()
         if customer:
             # Check for duplicate phone (excluding current customer)
@@ -107,9 +112,11 @@ def edit_customer(customer_id: int, request: Request, first_name: str = Form(...
 
 
 @router.post("/customers/{customer_id}/delete")
-def delete_customer(customer_id: int, request: Request, staff_name: str = Form(None)):
+def delete_customer(customer_id: int, request: Request, staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         customer = db.query(Customer).filter(Customer.id == customer_id).first()
         if customer:
             cname = customer.full_name
@@ -122,9 +129,11 @@ def delete_customer(customer_id: int, request: Request, staff_name: str = Form(N
 
 
 @router.post("/customers/edit-json/{customer_id}")
-def edit_customer_json(customer_id: int, first_name: str = Form(...), last_name: str = Form(...), phone: str = Form(...), email: str = Form(None), staff_name: str = Form(None)):
+def edit_customer_json(customer_id: int, request: Request, first_name: str = Form(...), last_name: str = Form(...), phone: str = Form(...), email: str = Form(None), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         customer = db.query(Customer).filter(Customer.id == customer_id).first()
         if not customer:
             return JSONResponse(content={"error": "Customer not found."}, status_code=404)
@@ -162,9 +171,11 @@ def edit_customer_json(customer_id: int, first_name: str = Form(...), last_name:
 
 
 @router.post("/customers/bulk-delete")
-def bulk_delete_customers(request: Request, customer_ids: str = Form(...), staff_name: str = Form(None)):
+def bulk_delete_customers(request: Request, customer_ids: str = Form(...), staff_name: str = Form("")):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         ids = [int(x.strip()) for x in customer_ids.split(',') if x.strip()]
         count = 0
         names = []
@@ -184,10 +195,11 @@ def bulk_delete_customers(request: Request, customer_ids: str = Form(...), staff
 
 
 @router.post("/customers/add-json")
-def add_customer_json(first_name: str = Form(...), last_name: str = Form(...), phone: str = Form(...), email: str = Form(None), staff_name: str = Form(None)):
+def add_customer_json(request: Request, first_name: str = Form(...), last_name: str = Form(...), phone: str = Form(...), email: str = Form(None), staff_name: str = Form("")):
     db = SessionLocal()
     try:
-        # Check for duplicate phone
+        if not staff_name.strip():
+            staff_name = get_staff_name(request)
         existing = db.query(Customer).filter(Customer.phone == phone).first()
         if existing:
             return JSONResponse(content={
@@ -282,9 +294,11 @@ def get_customer_credit(customer_id: int):
 
 
 @router.post("/customers/{customer_id}/credit/add")
-def add_customer_credit(customer_id: int, amount: float = Form(...), staff_name: str = Form(None), notes: str = Form(None)):
+def add_customer_credit(customer_id: int, amount: float = Form(...), staff_name: str = Form(""), notes: str = Form(None)):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = "System"
         customer = db.query(Customer).filter(Customer.id == customer_id).first()
         if not customer:
             return JSONResponse(content={"error": "Customer not found."}, status_code=404)
@@ -313,9 +327,11 @@ def add_customer_credit(customer_id: int, amount: float = Form(...), staff_name:
 
 
 @router.post("/customers/{customer_id}/credit/remove")
-def remove_customer_credit(customer_id: int, amount: float = Form(...), staff_name: str = Form(None), notes: str = Form(None)):
+def remove_customer_credit(customer_id: int, amount: float = Form(...), staff_name: str = Form(""), notes: str = Form(None)):
     db = SessionLocal()
     try:
+        if not staff_name.strip():
+            staff_name = "System"
         customer = db.query(Customer).filter(Customer.id == customer_id).first()
         if not customer:
             return JSONResponse(content={"error": "Customer not found."}, status_code=404)

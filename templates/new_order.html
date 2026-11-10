@@ -78,8 +78,7 @@
                 </select>
             </div>
             <div>
-                <label for="staff_name">Staff Name *</label>
-                <input type="text" id="staff_name" name="staff_name" placeholder="Your name" required style="width: 100%;">
+                <input type="hidden" name="staff_name" value="{{ current_staff_name or "" }}">
             </div>
         </div>
 
@@ -789,4 +788,20 @@
         }
     });
 </script>
+<style>
+@media (max-width: 768px) {
+    /* Finance grid — stack to 1 column */
+    div[style*="grid-template-columns: 1fr 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+    /* Customer form grid — stack to 1 column */
+    div[style*="grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+    /* Customer info flex row — stack */
+    .card > div[style*="display: flex"][style*="gap"] {
+        flex-direction: column !important;
+    }
+}
+</style>
 {% endblock %}

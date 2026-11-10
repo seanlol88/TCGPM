@@ -53,6 +53,8 @@
 .mgmt-square-backups { background: linear-gradient(135deg, #f59e0b, #d97706); }
 .mgmt-square-audit { background: linear-gradient(135deg, #6b7280, #4b5563); }
 .mgmt-square-system { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+.mgmt-square-images { background: linear-gradient(135deg, #ec4899, #db2777); }
+.mgmt-square-staff { background: linear-gradient(135deg, #14b8a6, #0d9488); }
 /* Inventory with categories layout */
 .inv-tabs {
     display: flex;
@@ -481,31 +483,54 @@
 <div class="card">
     <!-- Square Navigation Cards -->
     <div class="management-nav">
+        {% if current_permissions.manage_settings %}
         <div class="mgmt-square mgmt-square-store active" onclick="switchSection('store')" id="nav-store">
             <span class="square-icon">🏪</span>
             <span class="square-label">Store Settings</span>
         </div>
+        {% endif %}
+        {% if current_permissions.edit_inventory or current_permissions.view_inventory %}
         <div class="mgmt-square mgmt-square-inventory" onclick="switchSection('inventory')" id="nav-inventory">
             <span class="square-icon">📦</span>
             <span class="square-label">Inventory</span>
         </div>
+        {% endif %}
+        {% if current_permissions.manage_backups %}
         <div class="mgmt-square mgmt-square-backups" onclick="switchSection('backups')" id="nav-backups">
             <span class="square-icon">💾</span>
             <span class="square-label">Backups</span>
         </div>
+        {% endif %}
+        {% if current_permissions.view_audit_log %}
         <div class="mgmt-square mgmt-square-audit" onclick="switchSection('audit')" id="nav-audit">
             <span class="square-icon">📋</span>
             <span class="square-label">Audit Log</span>
         </div>
+        {% endif %}
+        {% if current_permissions.manage_system %}
         <div class="mgmt-square mgmt-square-system" onclick="switchSection('system')" id="nav-system">
             <span class="square-icon">⚙️</span>
             <span class="square-label">System</span>
         </div>
+        {% endif %}
+        {% if current_permissions.edit_inventory %}
+        <div class="mgmt-square mgmt-square-images" onclick="switchSection('images')" id="nav-images">
+            <span class="square-icon">🖼️</span>
+            <span class="square-label">Image Scraper</span>
+        </div>
+        {% endif %}
+        {% if current_permissions.manage_staff %}
+        <div class="mgmt-square mgmt-square-staff" onclick="switchSection('staff')" id="nav-staff">
+            <span class="square-icon">👥</span>
+            <span class="square-label">Staff</span>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Content Area Below Squares -->
     <div class="management-content">
         <!-- ==================== Store Settings ==================== -->
+        {% if current_permissions.manage_settings %}
         <div class="admin-section active" id="section-store">
             <div class="admin-section-header">
                 <div>
@@ -587,6 +612,16 @@
                     <span id="logo-name" style="font-size: 0.85rem; color: var(--text-muted);"></span>
                 </label>
 
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="logo_size">Logo Size in Header: <span id="logo-size-value">{{ settings.logo_size or 40 }}</span>px</label>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <input type="range" id="logo_size_slider" min="20" max="80" value="{{ settings.logo_size or 40 }}" style="flex: 1;" oninput="updateLogoSize(this.value)">
+                        <input type="hidden" id="logo_size" name="logo_size" value="{{ settings.logo_size or 40 }}">
+                        <span style="font-size: 0.85rem; color: var(--text-muted); min-width: 30px;">20</span>
+                        <span style="font-size: 0.85rem; color: var(--text-muted); min-width: 30px; text-align: right;">80</span>
+                    </div>
+                </div>
+
                 <hr class="form-divider">
 
                 <!-- Color Scheme -->
@@ -662,7 +697,7 @@
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
                     {% if settings.logo_path %}
-                    <img src="/{{ settings.logo_path }}" alt="Logo" style="max-height: 32px; object-fit: contain;">
+                    <img src="/{{ settings.logo_path }}" alt="Logo" id="preview-logo" style="max-height: {{ settings.logo_size or 40 }}px; object-fit: contain;">
                     {% endif %}
                     <strong>{{ settings.store_name or 'Your Store Name' }}</strong>
                 </div>
@@ -682,8 +717,10 @@
                 </div>
             </form>
         </div>
+        {% endif %}
 
         <!-- ==================== Inventory (with Categories & Sets) ==================== -->
+        {% if current_permissions.edit_inventory or current_permissions.view_inventory %}
         <div class="admin-section" id="section-inventory">
             <div class="admin-section-header">
                 <div>
@@ -709,8 +746,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- ==================== Backups ==================== -->
+        {% if current_permissions.manage_backups %}
         <div class="admin-section" id="section-backups">
             <div class="admin-section-header">
                 <div>
@@ -726,8 +765,10 @@
                 <p class="loading-placeholder">Loading backups...</p>
             </div>
         </div>
+        {% endif %}
 
         <!-- ==================== Audit Log ==================== -->
+        {% if current_permissions.view_audit_log %}
         <div class="admin-section" id="section-audit">
             <div class="admin-section-header">
                 <div>
@@ -739,13 +780,15 @@
                 <p class="loading-placeholder">Loading audit log...</p>
             </div>
         </div>
+        {% endif %}
 
         <!-- ==================== System ==================== -->
+        {% if current_permissions.manage_system %}
         <div class="admin-section" id="section-system">
             <div class="admin-section-header">
                 <div>
                     <h1 class="admin-section-title">System</h1>
-                    <p class="admin-section-subtitle">Check for updates, configure app port, and manage application restart.</p>
+                    <p class="admin-section-subtitle">Check for updates, configure app port, session timeout, and manage application restart.</p>
                 </div>
             </div>
 
@@ -778,13 +821,174 @@
 
             <hr class="form-divider">
 
+            <!-- Session Timeout -->
+            <div class="section-header">
+                <h2>Session Timeout</h2>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Automatically log out all users after a period of inactivity. This setting applies universally to all staff members.</p>
+            <form method="post" action="/settings/timeout">
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" name="timeout_enabled" {% if settings.timeout_enabled %}checked{% endif %} style="width: 18px; height: 18px;">
+                            <strong>Enable session timeout</strong>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="timeout-seconds-global">Timeout after (seconds)</label>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <input type="number" id="timeout-seconds-global" name="timeout_seconds" value="{{ settings.timeout_seconds or 1800 }}" min="30" max="86400" step="10" style="width: 150px; padding: 0.5rem; font-size: 0.9rem;">
+                            <span style="color: var(--text-muted); font-size: 0.85rem;">(min 30s, max 24h)</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <button type="submit" class="btn btn-success">Save Timeout</button>
+                </div>
+            </form>
+
+            <hr class="form-divider">
+
+            <!-- PIN Recovery -->
+            <div class="section-header">
+                <h2>PIN Recovery</h2>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+                Generate a recovery token that can be used to reset all staff PINs if access is lost.
+                The token is shown <strong>only once</strong> — save it in a secure location (print it or store it in a password manager).
+            </p>
+            <div id="recovery-status">
+                {% if settings.recovery_token_hash %}
+                <div style="background: #d4edda; color: #155724; border: 1px solid #c3e6cb; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem;">
+                    ✅ A recovery token is currently active. If lost, you can regenerate it below (the old token will be invalidated).
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-secondary" onclick="regenerateRecoveryToken()">🔄 Regenerate Token</button>
+                    <button type="button" class="btn btn-danger" onclick="disableRecoveryToken()">🚫 Disable Recovery</button>
+                </div>
+                {% else %}
+                <div style="background: #fff3cd; color: #856404; border: 1px solid #ffc107; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem;">
+                    ⚠️ No recovery token is set. Without one, lost PINs cannot be recovered.
+                </div>
+                <button type="button" class="btn btn-success" onclick="generateRecoveryToken()">🔑 Generate Recovery Token</button>
+                {% endif %}
+            </div>
+            <div id="recovery-token-display" style="display: none; margin-top: 1rem;">
+                <div style="background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: 1rem; border-radius: 6px; font-size: 0.9rem;">
+                    <strong>⚠️ SAVE THIS TOKEN NOW — it will not be shown again!</strong>
+                    <div style="margin: 0.75rem 0; padding: 0.75rem; background: #fff; border: 1px solid #dee2e6; border-radius: 4px; font-family: monospace; font-size: 1.1rem; letter-spacing: 0.15rem; word-break: break-all; user-select: all;" id="recovery-token-value"></div>
+                    <p style="margin-top: 0.5rem;">Print this page or copy the token to a secure location.</p>
+                    <button type="button" class="btn btn-secondary" onclick="window.print()" style="margin-top: 0.5rem;">🖨 Print</button>
+                </div>
+            </div>
+
+            <hr class="form-divider">
+
             <!-- Restart App -->
             <div class="section-header">
                 <h2>Restart Application</h2>
             </div>
             <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Restart the application. A backup will be created automatically before restarting.</p>
             <button type="button" class="btn btn-danger" onclick="openRestartModal()">🔄 Restart App</button>
+
+            <hr class="form-divider">
+
+            <!-- Reset All Settings -->
+            <div class="section-header">
+                <h2>Reset All Settings</h2>
+            </div>
+            <div style="background: #fff3cd; color: #856404; border: 1px solid #ffc107; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                <strong>⚠️ Warning:</strong> This will reset all store settings, colors, backup configuration, session timeout, and app port to their default values.
+                Your orders, customers, inventory, and staff data will <strong>not</strong> be affected.
+            </div>
+            <button type="button" class="btn btn-warning" onclick="openResetSettingsModal()" style="background: #ffc107; color: #000; border-color: #ffc107;">⚙️ Reset All Settings to Default</button>
+
+            <hr class="form-divider">
+
+            <!-- Delete Database -->
+            <div class="section-header">
+                <h2 style="color: #dc3545;">🗑 Delete Database</h2>
+            </div>
+            <div style="background: #f8d7da; color: #721c24; border: 2px solid #f5c6cb; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                <strong style="font-size: 1.1rem;">🚨 DANGER — THIS ACTION IS IRREVERSIBLE!</strong>
+                <ul style="margin-top: 0.5rem; margin-bottom: 0;">
+                    <li>This will <strong>permanently delete</strong> all data: orders, customers, inventory, categories, staff, settings, and everything else.</li>
+                    <li>A backup will be created automatically before deletion in the <code>backups/</code> folder.</li>
+                    <li>After deletion, the app will redirect to the first-run setup wizard.</li>
+                    <li>You must type <strong>DELETE</strong> (8 letters including the confirmation prompt) to confirm this action.</li>
+                </ul>
+            </div>
+            <button type="button" class="btn btn-danger" onclick="openDeleteDatabaseModal()">🗑 Delete Database</button>
         </div>
+        {% endif %}
+
+        <!-- ==================== Image Scraper ==================== -->
+        {% if current_permissions.edit_inventory %}
+        <div class="admin-section" id="section-images">
+            <div class="admin-section-header">
+                <div>
+                    <h1 class="admin-section-title">Image Scraper</h1>
+                    <p class="admin-section-subtitle">Search for products and attach images from the web, a URL, or your computer.</p>
+                </div>
+            </div>
+
+            <!-- Step 1: Search Product -->
+            <div class="section-header">
+                <h2>Step 1: Find a Product</h2>
+            </div>
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+                <input type="text" id="img-search-product" placeholder="Type product name to search..." style="flex:1; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: var(--input-bg); color: var(--text);" oninput="searchProductsForImage()">
+            </div>
+            <div id="img-product-results" style="max-height: 200px; overflow-y: auto; margin-bottom: 1.5rem;"></div>
+
+            <!-- Step 2: Choose Image -->
+            <div class="section-header">
+                <h2>Step 2: Choose an Image</h2>
+            </div>
+
+            <!-- Option A: Search Images (Openverse) -->
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text);">🔍 Search Images (Openverse)</h3>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <input type="text" id="img-web-search" placeholder="Search term (e.g. Pokemon Charizard)" style="flex:1; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: var(--input-bg); color: var(--text);">
+                    <button type="button" class="btn btn-primary" onclick="searchWebImages()">Search</button>
+                </div>
+                <div id="img-web-results" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;"></div>
+            </div>
+
+            <!-- Option B: Paste URL -->
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text);">🔗 Paste Image URL</h3>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <input type="url" id="img-url-input" placeholder="https://example.com/image.jpg" style="flex:1; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: var(--input-bg); color: var(--text);">
+                    <button type="button" class="btn btn-primary" onclick="loadImageFromUrl()">Load</button>
+                </div>
+            </div>
+
+            <!-- Option C: Upload from Computer -->
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text);">📁 Upload from Computer</h3>
+                <label style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <span class="btn btn-secondary btn-sm">📁 Choose File</span>
+                    <input type="file" id="img-upload-input" accept="image/*" style="display: none;" onchange="previewUploadedImage()">
+                    <span id="img-upload-name" style="font-size: 0.85rem; color: var(--text-muted);"></span>
+                </label>
+            </div>
+
+            <!-- Image Preview -->
+            <div id="img-preview-area" style="display: none; margin-bottom: 1.5rem;">
+                <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text);">Preview</h3>
+                <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                    <img id="img-preview" src="" alt="Preview" style="max-width: 200px; max-height: 200px; object-fit: contain; border: 2px solid var(--border); border-radius: 8px;">
+                    <div>
+                        <p style="font-size: 0.85rem; color: var(--text-muted);">Image ready to attach. Select a product above, then click Attach.</p>
+                        <button type="button" class="btn btn-success" onclick="attachImageToProduct()" id="img-attach-btn" disabled>📎 Attach to Selected Product</button>
+                        <div id="img-attach-status" style="margin-top: 0.5rem; font-size: 0.85rem;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 <!-- End Management Page Card -->
@@ -821,14 +1025,146 @@
     </div>
 </div>
 
+<!-- Reset Settings Confirmation Modal -->
+<div id="reset-settings-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeResetSettingsModal()">
+    <div class="modal-box" style="max-width: 480px;">
+        <button class="modal-close" onclick="closeResetSettingsModal()">&times;</button>
+        <h2 style="color: #ffc107;">⚠️ Reset All Settings to Default</h2>
+        <div style="background: #fff3cd; color: #856404; border: 1px solid #ffc107; padding: 0.75rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem;">
+            <strong>What will be reset:</strong>
+            <ul style="margin: 0.5rem 0 0 0;">
+                <li>Store name, address, contact info, email, website, ABN</li>
+                <li>Logo and color scheme</li>
+                <li>Backup configuration</li>
+                <li>App port (back to 8000)</li>
+                <li>Session timeout settings</li>
+                <li>Gmail connection settings</li>
+            </ul>
+            <p style="margin-top: 0.5rem; margin-bottom: 0;"><strong>What will NOT be affected:</strong> Orders, customers, inventory, categories, staff members, and audit log.</p>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Are you sure you want to reset all settings to their default values?</p>
+        <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+            <button type="button" class="btn btn-secondary" onclick="closeResetSettingsModal()">Cancel</button>
+            <button type="button" class="btn btn-warning" onclick="submitResetSettings()" style="background: #ffc107; color: #000; border-color: #ffc107;">⚙️ Reset Settings</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Database Confirmation Modal -->
+<div id="delete-database-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeDeleteDatabaseModal()">
+    <div class="modal-box" style="max-width: 520px;">
+        <button class="modal-close" onclick="closeDeleteDatabaseModal()">&times;</button>
+        <h2 style="color: #dc3545;">🚨 DELETE DATABASE — IRREVERSIBLE</h2>
+        
+        <!-- Step 1: Initial Warning -->
+        <div id="delete-step-1">
+            <div style="background: #f8d7da; color: #721c24; border: 2px solid #f5c6cb; padding: 1rem; border-radius: 6px; margin: 1rem 0;">
+                <p style="margin-bottom: 0.5rem;"><strong>⚠️ WARNING: This will permanently destroy ALL data in this application.</strong></p>
+                <ul style="margin: 0.5rem 0 0 0;">
+                    <li>🗑 All orders (including completed and cancelled)</li>
+                    <li>🗑 All customers</li>
+                    <li>🗑 All inventory products</li>
+                    <li>🗑 All categories and subcategories</li>
+                    <li>🗑 All staff members and permissions</li>
+                    <li>🗑 All settings and configurations</li>
+                    <li>🗑 All audit logs</li>
+                    <li>🗑 All payment records</li>
+                    <li>🗑 All distributors</li>
+                </ul>
+            </div>
+            <div style="background: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem;">
+                ✅ A backup will be automatically created in the <code>backups/</code> folder before deletion.
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">If you are absolutely sure, click the button below to proceed to the confirmation step.</p>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteDatabaseModal()">Cancel — Keep My Data</button>
+                <button type="button" class="btn btn-danger" onclick="goToDeleteStep2()">I Understand — Continue</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Type DELETE to Confirm -->
+        <div id="delete-step-2" style="display: none;">
+            <div style="background: #f8d7da; color: #721c24; border: 2px solid #f5c6cb; padding: 1rem; border-radius: 6px; margin: 1rem 0;">
+                <p style="margin-bottom: 0.5rem;"><strong>🚨 FINAL CONFIRMATION</strong></p>
+                <p style="margin: 0;">To confirm you want to delete the entire database, type the word <strong style="font-size: 1.2rem; letter-spacing: 0.1rem;">DELETE</strong> in the box below.</p>
+            </div>
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label for="delete-confirm-input" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #dc3545;">Type DELETE to confirm:</label>
+                <input type="text" id="delete-confirm-input" placeholder="Type DELETE here" style="width: 100%; padding: 0.75rem; border: 2px solid #dc3545; border-radius: 6px; font-size: 1.1rem; font-weight: 600; letter-spacing: 0.1rem; text-transform: uppercase; text-align: center;" oninput="checkDeleteConfirmation()">
+                <div id="delete-error" style="color: #dc3545; font-size: 0.85rem; margin-top: 0.5rem; display: none;"></div>
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="goToDeleteStep1()">← Go Back</button>
+                <button type="button" class="btn btn-danger" id="delete-confirm-btn" onclick="submitDeleteDatabase()" disabled style="opacity: 0.5;">🗑 Delete Everything</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- === Backup Modals === -->
+
+<!-- Run Backup Modal -->
+<div id="backup-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeBackupModal()">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeBackupModal()">&times;</button>
+        <h2>Run Backup Now</h2>
+        <p>Create a backup of the database immediately.</p>
+        <form id="backup-form" onsubmit="runBackup(event)">
+            <div class="form-group">
+                <label for="backup_staff_name">Staff Name *</label>
+                <input type="text" id="backup_staff_name" name="staff_name" required placeholder="Enter your name">
+            </div>
+            <div class="form-group">
+                <label for="backup_notes">Notes (optional)</label>
+                <input type="text" id="backup_notes" name="notes" placeholder="e.g., Before migrating data">
+            </div>
+            <div class="button-group" style="margin-top: 1.5rem;">
+                <button type="submit" class="btn btn-primary">Run Backup</button>
+                <button type="button" class="btn btn-secondary" onclick="closeBackupModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Import Backup Modal -->
+<div id="import-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeImportModal()">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeImportModal()">&times;</button>
+        <h2>📥 Import Database from Backup File</h2>
+        <div style="padding: 0.75rem; background: #fef3c7; border-radius: 4px; margin-bottom: 1rem;">
+            <strong>Warning:</strong> This will replace the current database with the uploaded backup file. All changes made since that backup was created will be lost permanently.
+        </div>
+        <div style="padding: 0.75rem; background: var(--th-bg); border-radius: 4px; margin-bottom: 1rem;">
+            <p style="margin: 0; font-size: 0.9rem;">Select a <code>.db</code> backup file from your computer. The file will be validated before importing.</p>
+        </div>
+        <form id="import-form" onsubmit="importBackup(event)">
+            <div class="form-group">
+                <label for="import-file">Backup File (.db)</label>
+                <input type="file" id="import-file" accept=".db" required>
+                <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
+                    Selected: <strong id="import-file-name">No file selected</strong>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="import_staff_name">Staff Name *</label>
+                <input type="text" id="import_staff_name" name="staff_name" required placeholder="Enter your name">
+            </div>
+            <div class="button-group" style="margin-top: 1.5rem;">
+                <button type="submit" class="btn btn-danger">Import Database</button>
+                <button type="button" class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- === All Modals (always available, not AJAX-dependent) === -->
 
 <!-- ====== Category Modals ====== -->
 
 <!-- Add Category Modal -->
-<div id="cat-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeCatAddModal()">
+<div id="cat-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseCatAddModal()">
     <div class="modal-box" style="max-width: 400px;">
-        <button class="modal-close" onclick="closeCatAddModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseCatAddModal()">&times;</button>
         <h2>Add Category</h2>
         <form id="cat-add-form" onsubmit="submitCatAdd(event)">
             <div class="form-group">
@@ -840,7 +1176,7 @@
                 <input type="text" id="cat-add-staff" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeCatAddModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseCatAddModal()">Cancel</button>
                 <button type="submit" class="btn btn-success">Add Category</button>
             </div>
         </form>
@@ -848,9 +1184,9 @@
 </div>
 
 <!-- Edit Category Modal -->
-<div id="cat-edit-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeCatEditModal()">
+<div id="cat-edit-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseCatEditModal()">
     <div class="modal-box" style="max-width: 400px;">
-        <button class="modal-close" onclick="closeCatEditModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseCatEditModal()">&times;</button>
         <h2>Edit Category</h2>
         <form id="cat-edit-form" onsubmit="submitCatEdit(event)">
             <input type="hidden" id="cat-edit-id">
@@ -863,7 +1199,7 @@
                 <input type="text" id="cat-edit-staff" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeCatEditModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseCatEditModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
         </form>
@@ -892,9 +1228,9 @@
 </div>
 
 <!-- Add Set Name Modal (for Categories tab) -->
-<div id="cat-set-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeCatSetAddModal()">
+<div id="cat-set-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseCatSetAddModal()">
     <div class="modal-box" style="max-width: 400px;">
-        <button class="modal-close" onclick="closeCatSetAddModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseCatSetAddModal()">&times;</button>
         <h2>Add Set Name</h2>
         <form id="cat-set-add-form" onsubmit="submitCatSetAdd(event)">
             <input type="hidden" id="cat-set-add-category_id" name="category_id">
@@ -911,7 +1247,7 @@
                 <input type="text" id="cat-set-add-staff" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeCatSetAddModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseCatSetAddModal()">Cancel</button>
                 <button type="submit" class="btn btn-success">Add Set Name</button>
             </div>
         </form>
@@ -919,9 +1255,9 @@
 </div>
 
 <!-- Edit Set Name Modal (for Categories tab) -->
-<div id="cat-set-edit-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeCatSetEditModal()">
+<div id="cat-set-edit-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseCatSetEditModal()">
     <div class="modal-box" style="max-width: 400px;">
-        <button class="modal-close" onclick="closeCatSetEditModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseCatSetEditModal()">&times;</button>
         <h2>Edit Set Name</h2>
         <form id="cat-set-edit-form" onsubmit="submitCatSetEdit(event)">
             <input type="hidden" id="cat-set-edit-id">
@@ -935,7 +1271,7 @@
                 <input type="text" id="cat-set-edit-staff" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeCatSetEditModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseCatSetEditModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
         </form>
@@ -968,7 +1304,7 @@
 <!-- Add Product Modal -->
 <div id="inv-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptInvCloseAddModal()">
     <div class="modal-box">
-        <button class="modal-close" onclick="closeInvAddModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseInvAddModal()">&times;</button>
         <h2>Add Product</h2>
         <form id="inv-add-form" onsubmit="submitInvAdd(event)">
             <div class="form-group">
@@ -996,9 +1332,27 @@
                 <input type="date" id="inv-add-release_date" name="release_date">
             </div>
             <div class="form-group">
+                <label>Product Image</label>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <input type="text" id="inv-add-image_url" name="image_url" placeholder="Image URL (optional)" style="flex:1; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: var(--input-bg); color: var(--text);" onblur="previewImageUrl('add')">
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="searchImageForProduct('add')">🔍 Search</button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <label for="inv-add-image" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <span class="btn btn-sm btn-secondary">📁 Upload File</span>
+                        <input type="file" id="inv-add-image" name="image" accept="image/*" style="display: none;" onchange="document.getElementById('inv-add-image-name').textContent = this.files[0] ? this.files[0].name : ''; previewInvImage('add')">
+                        <span id="inv-add-image-name" style="font-size: 0.85rem; color: var(--text-muted);"></span>
+                    </label>
+                </div>
+                <div id="inv-add-image-preview" style="margin-top: 0.5rem; display: none;">
+                    <img id="inv-add-image-preview-img" style="max-width: 150px; max-height: 150px; border-radius: 6px; border: 1px solid var(--border);">
+                </div>
+                <div id="inv-add-image-search-results" style="max-height: 200px; overflow-y: auto; margin-top: 0.5rem; display: none;"></div>
+            </div>
+            <div class="form-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                     <label for="inv-add-category_id">Category</label>
-                    <button type="button" class="btn btn-sm btn-success" onclick="openInvAddCategoryModal()">+ Add Category</button>
+                    <button type="button" class="btn btn-sm btn-success" onclick="openInvCatAddModal()">+ Add Category</button>
                 </div>
                 <select id="inv-add-category_id" name="category_id" onchange="filterInvSubcategories('add')">
                 </select>
@@ -1006,7 +1360,7 @@
             <div class="form-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                     <label for="inv-add-subcategory_id">Set Name</label>
-                    <button type="button" class="btn btn-sm btn-success" onclick="openInvAddSubcategoryModal()">+ Add Set Name</button>
+                    <button type="button" class="btn btn-sm btn-success" onclick="openInvSetAddModal()">+ Add Set Name</button>
                 </div>
                 <select id="inv-add-subcategory_id" name="subcategory_id">
                 </select>
@@ -1016,7 +1370,7 @@
                 <input type="text" id="inv-add-staff_name" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeInvAddModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseInvAddModal()">Cancel</button>
                 <button type="submit" class="btn btn-success">Add Product</button>
             </div>
         </form>
@@ -1026,7 +1380,7 @@
 <!-- Edit Product Modal -->
 <div id="inv-edit-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptInvCloseEditModal()">
     <div class="modal-box">
-        <button class="modal-close" onclick="closeInvEditModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseInvEditModal()">&times;</button>
         <h2>Edit Product</h2>
         <form id="inv-edit-form" onsubmit="submitInvEdit(event)">
             <input type="hidden" id="inv-edit-id" name="id">
@@ -1055,9 +1409,33 @@
                 <input type="date" id="inv-edit-release_date" name="release_date">
             </div>
             <div class="form-group">
+                <label>Product Image</label>
+                <div id="inv-edit-current-image" style="margin-bottom: 0.5rem; display: none;">
+                    <span style="font-size: 0.85rem; color: var(--text-muted);">Current image:</span>
+                    <img id="inv-edit-current-image-img" style="max-width: 150px; max-height: 150px; border-radius: 6px; border: 1px solid var(--border); margin-left: 0.5rem;">
+                    <button type="button" class="btn btn-sm btn-danger" style="margin-left: 0.5rem;" onclick="clearEditImage()">Remove</button>
+                </div>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <input type="text" id="inv-edit-image_url" name="image_url" placeholder="Image URL (optional)" style="flex:1; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: var(--input-bg); color: var(--text);" onblur="previewImageUrl('edit')">
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="searchImageForProduct('edit')">🔍 Search</button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <label for="inv-edit-image" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <span class="btn btn-sm btn-secondary">📁 Upload File</span>
+                        <input type="file" id="inv-edit-image" name="image" accept="image/*" style="display: none;" onchange="document.getElementById('inv-edit-image-name').textContent = this.files[0] ? this.files[0].name : ''; previewInvImage('edit')">
+                        <span id="inv-edit-image-name" style="font-size: 0.85rem; color: var(--text-muted);"></span>
+                    </label>
+                </div>
+                <div id="inv-edit-image-preview" style="margin-top: 0.5rem; display: none;">
+                    <img id="inv-edit-image-preview-img" style="max-width: 150px; max-height: 150px; border-radius: 6px; border: 1px solid var(--border);">
+                    <span style="font-size: 0.85rem; color: var(--text-muted); margin-left: 0.5rem;">New image preview</span>
+                </div>
+                <div id="inv-edit-image-search-results" style="max-height: 200px; overflow-y: auto; margin-top: 0.5rem; display: none;"></div>
+            </div>
+            <div class="form-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                     <label for="inv-edit-category_id">Category</label>
-                    <button type="button" class="btn btn-sm btn-success" onclick="openInvAddCategoryModal()">+ Add Category</button>
+                    <button type="button" class="btn btn-sm btn-success" onclick="openInvCatAddModal()">+ Add Category</button>
                 </div>
                 <select id="inv-edit-category_id" name="category_id" onchange="filterInvSubcategories('edit')">
                 </select>
@@ -1065,7 +1443,7 @@
             <div class="form-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                     <label for="inv-edit-subcategory_id">Set Name</label>
-                    <button type="button" class="btn btn-sm btn-success" onclick="openInvAddSubcategoryModal()">+ Add Set Name</button>
+                    <button type="button" class="btn btn-sm btn-success" onclick="openInvSetAddModal()">+ Add Set Name</button>
                 </div>
                 <select id="inv-edit-subcategory_id" name="subcategory_id">
                 </select>
@@ -1075,7 +1453,7 @@
                 <input type="text" id="inv-edit-staff_name" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeInvEditModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseInvEditModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
         </form>
@@ -1107,9 +1485,9 @@
 </div>
 
 <!-- Add Category Modal (for Inventory) -->
-<div id="inv-cat-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeInvCatAddModal()">
+<div id="inv-cat-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseInvCatAddModal()">
     <div class="modal-box" style="max-width: 400px;">
-        <button class="modal-close" onclick="closeInvCatAddModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseInvCatAddModal()">&times;</button>
         <h2>Add Category</h2>
         <form id="inv-cat-add-form" onsubmit="submitInvCatAdd(event)">
             <div class="form-group">
@@ -1121,7 +1499,7 @@
                 <input type="text" id="inv-cat-add-staff" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeInvCatAddModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseInvCatAddModal()">Cancel</button>
                 <button type="submit" class="btn btn-success">Add Category</button>
             </div>
         </form>
@@ -1129,9 +1507,9 @@
 </div>
 
 <!-- Add Set Name Modal (for Inventory) -->
-<div id="inv-set-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)closeInvSetAddModal()">
+<div id="inv-set-add-modal" class="modal-overlay" style="display: none;" onclick="if(event.target===this)promptCloseInvSetAddModal()">
     <div class="modal-box" style="max-width: 400px;">
-        <button class="modal-close" onclick="closeInvSetAddModal()">&times;</button>
+        <button class="modal-close" onclick="promptCloseInvSetAddModal()">&times;</button>
         <h2>Add Set Name</h2>
         <form id="inv-set-add-form" onsubmit="submitInvSetAdd(event)">
             <div class="form-group">
@@ -1149,7 +1527,7 @@
                 <input type="text" id="inv-set-add-staff" name="staff_name" required placeholder="Your name">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeInvSetAddModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="promptCloseInvSetAddModal()">Cancel</button>
                 <button type="submit" class="btn btn-success">Add Set Name</button>
             </div>
         </form>
@@ -1238,8 +1616,191 @@
     </div>
 </div>
 
+<!-- ==================== Staff Management ==================== -->
+<div class="admin-section" id="section-staff">
+    <div class="admin-section-header">
+        <div>
+            <h1 class="admin-section-title">Staff Management</h1>
+            <p class="admin-section-subtitle">Manage staff accounts, 4-digit PINs, and role-based permissions. Each staff member's actions are tracked in the audit log.</p>
+        </div>
+    </div>
+
+    <!-- Add Staff Form -->
+    {% if current_permissions.manage_staff %}
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <h2 style="margin-bottom: 1rem;">Add New Staff Member</h2>
+        <form method="post" action="/settings/staff/add" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 1; min-width: 200px;">
+                <label for="staff-name">Name *</label>
+                <input type="text" id="staff-name" name="name" required placeholder="e.g. John Smith">
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 150px;">
+                <label for="staff-pin">4-Digit PIN *</label>
+                <input type="password" id="staff-pin" name="pin" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="0000">
+            </div>
+            <button type="submit" class="btn btn-success">Add Staff</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Staff List -->
+    <div class="card">
+        <h2 style="margin-bottom: 1rem;">Staff Members</h2>
+        {% if staff_list %}
+        {% for staff in staff_list %}
+        <div class="staff-card" style="border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+                <div>
+                    <strong style="font-size: 1.1rem;">{{ staff.name }}</strong>
+                    {% if staff.active %}
+                    <span style="color: #27ae60; font-weight: 600; margin-left: 0.5rem;">● Active</span>
+                    {% else %}
+                    <span style="color: #e74c3c; font-weight: 600; margin-left: 0.5rem;">● Inactive</span>
+                    {% endif %}
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                    <!-- Change PIN -->
+                    {% if current_permissions.manage_staff %}
+                    <form method="post" action="/settings/staff/{{ staff.id }}/change-pin" style="display: inline-flex; gap: 0.25rem; align-items: center;">
+                        <input type="password" name="pin" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="New PIN" style="width: 80px; padding: 0.25rem 0.5rem; font-size: 0.85rem;">
+                        <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Change PIN for {{ staff.name }}?')">Change PIN</button>
+                    </form>
+                    <!-- Toggle Active -->
+                    <form method="post" action="/settings/staff/{{ staff.id }}/toggle" style="display: inline;">
+                        {% if staff.active %}
+                        <button type="submit" class="btn btn-sm btn-secondary" onclick="return confirm('Deactivate {{ staff.name }}? They will not be able to log in.')">Deactivate</button>
+                        {% else %}
+                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Activate {{ staff.name }}?')">Activate</button>
+                        {% endif %}
+                    </form>
+                    {% endif %}
+                    <!-- Permissions toggle button -->
+                    {% if current_permissions.manage_staff %}
+                    <button type="button" class="btn btn-sm btn-primary" onclick="togglePermissions({{ staff.id }})">⚙ Permissions</button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Permissions Section (collapsible) -->
+            {% if current_permissions.manage_staff %}
+            <div id="perms-{{ staff.id }}" class="permissions-section" style="display: none; border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 0.5rem;">
+                <h3 style="margin-bottom: 0.75rem; font-size: 1rem;">Permissions for {{ staff.name }}</h3>
+                <form method="post" action="/settings/staff/{{ staff.id }}/permissions">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem 1.5rem;">
+                        <!-- Orders -->
+                        <fieldset style="border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; margin: 0;">
+                            <legend style="font-weight: 600; font-size: 0.85rem; padding: 0 0.5rem;">📦 Orders</legend>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                <input type="checkbox" name="view_orders" {% if staff.get_permissions().view_orders %}checked{% endif %}> View Orders
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                <input type="checkbox" name="create_orders" {% if staff.get_permissions().create_orders %}checked{% endif %}> Create Orders
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                <input type="checkbox" name="edit_orders" {% if staff.get_permissions().edit_orders %}checked{% endif %}> Edit Orders
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" name="delete_orders" {% if staff.get_permissions().delete_orders %}checked{% endif %}> Delete Orders
+                            </label>
+                        </fieldset>
+                        <!-- Customers -->
+                        <fieldset style="border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; margin: 0;">
+                            <legend style="font-weight: 600; font-size: 0.85rem; padding: 0 0.5rem;">👤 Customers</legend>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                <input type="checkbox" name="view_customers" {% if staff.get_permissions().view_customers %}checked{% endif %}> View Customers
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" name="edit_customers" {% if staff.get_permissions().edit_customers %}checked{% endif %}> Edit Customers
+                            </label>
+                        </fieldset>
+                        <!-- Inventory -->
+                        <fieldset style="border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; margin: 0;">
+                            <legend style="font-weight: 600; font-size: 0.85rem; padding: 0 0.5rem;">📋 Inventory</legend>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                <input type="checkbox" name="view_inventory" {% if staff.get_permissions().view_inventory %}checked{% endif %}> View Inventory
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" name="edit_inventory" {% if staff.get_permissions().edit_inventory %}checked{% endif %}> Edit Inventory
+                            </label>
+                        </fieldset>
+                        <!-- Categories -->
+                        <fieldset style="border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; margin: 0;">
+                            <legend style="font-weight: 600; font-size: 0.85rem; padding: 0 0.5rem;">📂 Categories</legend>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                <input type="checkbox" name="view_categories" {% if staff.get_permissions().view_categories %}checked{% endif %}> View Categories
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" name="edit_categories" {% if staff.get_permissions().edit_categories %}checked{% endif %}> Edit Categories
+                            </label>
+                        </fieldset>
+                        <!-- Payments -->
+                        <fieldset style="border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; margin: 0;">
+                            <legend style="font-weight: 600; font-size: 0.85rem; padding: 0 0.5rem;">💰 Payments</legend>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                <input type="checkbox" name="view_payments" {% if staff.get_permissions().view_payments %}checked{% endif %}> View Payments
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" name="edit_payments" {% if staff.get_permissions().edit_payments %}checked{% endif %}> Edit Payments
+                            </label>
+                        </fieldset>
+                        <!-- Distributors -->
+                        <fieldset style="border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; margin: 0;">
+                            <legend style="font-weight: 600; font-size: 0.85rem; padding: 0 0.5rem;">🚚 Distributors</legend>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                <input type="checkbox" name="view_distributors" {% if staff.get_permissions().view_distributors %}checked{% endif %}> View Distributors
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" name="edit_distributors" {% if staff.get_permissions().edit_distributors %}checked{% endif %}> Edit Distributors
+                            </label>
+                        </fieldset>
+                        <!-- Admin Functions -->
+                        <fieldset style="border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; margin: 0;">
+                            <legend style="font-weight: 600; font-size: 0.85rem; padding: 0 0.5rem;">🔒 Admin</legend>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                <input type="checkbox" name="view_audit_log" {% if staff.get_permissions().view_audit_log %}checked{% endif %}> View Audit Log
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                <input type="checkbox" name="manage_settings" {% if staff.get_permissions().manage_settings %}checked{% endif %}> Manage Settings
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                <input type="checkbox" name="manage_backups" {% if staff.get_permissions().manage_backups %}checked{% endif %}> Manage Backups
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                <input type="checkbox" name="manage_system" {% if staff.get_permissions().manage_system %}checked{% endif %}> System Controls
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" name="manage_staff" {% if staff.get_permissions().manage_staff %}checked{% endif %} {% if staff.id == 1 %}disabled{% endif %}> Manage Staff
+                                {% if staff.id == 1 %}<small style="color: var(--text-muted);"> (required)</small>{% endif %}
+                            </label>
+                        </fieldset>
+                    </div>
+                    <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="togglePermissions({{ staff.id }})">Cancel</button>
+                        <button type="submit" class="btn btn-success" onclick="return confirm('Save permissions for {{ staff.name }}?')">Save Permissions</button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <p style="color: var(--text-muted);">No staff members configured. Add one above to get started.</p>
+        {% endif %}
+    </div>
+</div>
+
 <script>
-// Section switching
+function togglePermissions(staffId) {
+    var el = document.getElementById('perms-' + staffId);
+    if (el.style.display === 'none') {
+        el.style.display = 'block';
+    } else {
+        el.style.display = 'none';
+    }
+}
+</script>
+
+<script>
 var loadedSections = { store: true };
 var invCategories = [];
 var invSubcategories = [];
@@ -1491,6 +2052,11 @@ function closeCatAddModal() {
     document.getElementById('cat-add-modal').style.display = 'none';
     document.getElementById('cat-add-form').reset();
 }
+function promptCloseCatAddModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeCatAddModal();
+    }
+}
 function submitCatAdd(e) {
     e.preventDefault();
     var formData = new FormData();
@@ -1514,6 +2080,11 @@ function openCatEditModal(id, name) {
 function closeCatEditModal() {
     document.getElementById('cat-edit-modal').style.display = 'none';
     document.getElementById('cat-edit-form').reset();
+}
+function promptCloseCatEditModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeCatEditModal();
+    }
 }
 function submitCatEdit(e) {
     e.preventDefault();
@@ -1565,6 +2136,11 @@ function closeCatSetAddModal() {
     document.getElementById('cat-set-add-modal').style.display = 'none';
     document.getElementById('cat-set-add-form').reset();
 }
+function promptCloseCatSetAddModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeCatSetAddModal();
+    }
+}
 function submitCatSetAdd(e) {
     e.preventDefault();
     var categoryId = document.getElementById('cat-set-add-category_id').value;
@@ -1593,6 +2169,11 @@ function openCatSetEditModal(id, categoryId, name) {
 function closeCatSetEditModal() {
     document.getElementById('cat-set-edit-modal').style.display = 'none';
     document.getElementById('cat-set-edit-form').reset();
+}
+function promptCloseCatSetEditModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeCatSetEditModal();
+    }
 }
 function submitCatSetEdit(e) {
     e.preventDefault();
@@ -1646,6 +2227,14 @@ function openInvAddModal() {
 function closeInvAddModal() {
     document.getElementById('inv-add-modal').style.display = 'none';
     document.getElementById('inv-add-form').reset();
+    document.getElementById('inv-add-image-name').textContent = '';
+    document.getElementById('inv-add-image-preview').style.display = 'none';
+    document.getElementById('inv-add-image-search-results').style.display = 'none';
+}
+function promptCloseInvAddModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeInvAddModal();
+    }
 }
 function promptInvCloseAddModal() {
     if (confirm('Are you sure you want to discard your changes?')) closeInvAddModal();
@@ -1665,7 +2254,7 @@ function submitInvAdd(e) {
 }
 
 // Edit Product
-function openInvEditModal(id, name, quantity, price, costPrice, maxPerOrder, releaseDate, categoryId, subcategoryId) {
+function openInvEditModal(id, name, quantity, price, costPrice, maxPerOrder, releaseDate, categoryId, subcategoryId, imageUrl) {
     document.getElementById('inv-edit-id').value = id;
     document.getElementById('inv-edit-name').value = name;
     document.getElementById('inv-edit-quantity').value = quantity;
@@ -1674,6 +2263,18 @@ function openInvEditModal(id, name, quantity, price, costPrice, maxPerOrder, rel
     document.getElementById('inv-edit-max_per_order').value = maxPerOrder !== null && maxPerOrder !== undefined ? maxPerOrder : '';
     document.getElementById('inv-edit-release_date').value = releaseDate;
     document.getElementById('inv-edit-category_id').value = categoryId || '';
+    document.getElementById('inv-edit-image_url').value = '';
+    document.getElementById('inv-edit-image-name').textContent = '';
+    document.getElementById('inv-edit-image-preview').style.display = 'none';
+    document.getElementById('inv-edit-image-search-results').style.display = 'none';
+    var currentImgDiv = document.getElementById('inv-edit-current-image');
+    var currentImg = document.getElementById('inv-edit-current-image-img');
+    if (imageUrl) {
+        currentImg.src = '/' + imageUrl;
+        currentImgDiv.style.display = 'flex';
+    } else {
+        currentImgDiv.style.display = 'none';
+    }
     document.getElementById('inv-edit-modal').style.display = 'flex';
     setTimeout(function() {
         filterInvSubcategories('edit');
@@ -1683,6 +2284,11 @@ function openInvEditModal(id, name, quantity, price, costPrice, maxPerOrder, rel
 }
 function closeInvEditModal() {
     document.getElementById('inv-edit-modal').style.display = 'none';
+}
+function promptCloseInvEditModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeInvEditModal();
+    }
 }
 function promptInvCloseEditModal() {
     if (confirm('Are you sure you want to discard your changes?')) closeInvEditModal();
@@ -1731,6 +2337,96 @@ function submitInvDel(e) {
         .catch(function() { showToast('Error deleting product.', 'error'); });
 }
 
+// Image functions for Add/Edit Product modals
+function searchImageForProduct(mode) {
+    var query = document.getElementById('inv-' + mode + '-image_url').value.trim();
+    if (!query) {
+        showToast('Enter a product name or image URL to search.', 'error');
+        return;
+    }
+    var resultsDiv = document.getElementById('inv-' + mode + '-image-search-results');
+    resultsDiv.style.display = 'block';
+    resultsDiv.innerHTML = '<div style="padding: 1rem; text-align: center; color: var(--text-muted);">Searching...</div>';
+    fetch('/inventory/search-products?q=' + encodeURIComponent(query))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.products && data.products.length > 0) {
+                resultsDiv.innerHTML = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.5rem;">' +
+                    data.products.map(function(p) {
+                        var imgSrc = p.thumb_url || p.image_url;
+                        return '<div style="text-align: center; cursor: pointer;" onclick="selectImageForProduct(\'' + mode + '\', \'' + (p.image_url || '').replace(/'/g, "\\'") + '\')">' +
+                            (imgSrc ? '<img src="/' + imgSrc.replace(/'/g, "\\'") + '" style="width: 80px; height: 80px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border);">' :
+                            '<div style="width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; background: var(--bg-secondary); border-radius: 4px; border: 1px solid var(--border);">🖼️</div>') +
+                            '<div style="font-size: 0.75rem; margin-top: 4px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + p.name + '</div>' +
+                        '</div>';
+                    }).join('') +
+                '</div>';
+            } else {
+                resultsDiv.innerHTML = '<div style="padding: 1rem; text-align: center; color: var(--text-muted);">No products found. Try a different search term.</div>';
+            }
+        })
+        .catch(function() {
+            resultsDiv.innerHTML = '<div style="padding: 1rem; text-align: center; color: var(--text-danger);">Search failed. Try again.</div>';
+        });
+}
+function selectImageForProduct(mode, imageUrl) {
+    document.getElementById('inv-' + mode + '-image_url').value = imageUrl;
+    document.getElementById('inv-' + mode + '-image-search-results').style.display = 'none';
+    var previewDiv = document.getElementById('inv-' + mode + '-image-preview');
+    var previewImg = document.getElementById('inv-' + mode + '-image-preview-img');
+    previewImg.src = '/' + imageUrl;
+    previewDiv.style.display = 'block';
+    showToast('Image selected.', 'success');
+}
+function clearEditImage() {
+    document.getElementById('inv-edit-current-image').style.display = 'none';
+    document.getElementById('inv-edit-image_url').value = '';
+    document.getElementById('inv-edit-image-preview').style.display = 'none';
+    // Append a flag to clear the image on save
+    var hiddenInput = document.getElementById('inv-edit-clear-image');
+    if (!hiddenInput) {
+        hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.id = 'inv-edit-clear-image';
+        hiddenInput.name = 'clear_image';
+        document.getElementById('inv-edit-form').appendChild(hiddenInput);
+    }
+    hiddenInput.value = '1';
+    showToast('Image will be removed on save.', 'success');
+}
+function previewInvImage(mode) {
+    var fileInput = document.getElementById('inv-' + mode + '-image');
+    var file = fileInput.files[0];
+    if (file) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var previewDiv = document.getElementById('inv-' + mode + '-image-preview');
+            var previewImg = document.getElementById('inv-' + mode + '-image-preview-img');
+            previewImg.src = e.target.result;
+            previewDiv.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+}
+function previewImageUrl(mode) {
+    var urlInput = document.getElementById('inv-' + mode + '-image_url');
+    var url = urlInput.value.trim();
+    if (!url) return;
+    var previewDiv = document.getElementById('inv-' + mode + '-image-preview');
+    var previewImg = document.getElementById('inv-' + mode + '-image-preview-img');
+    previewImg.onload = function() {
+        previewDiv.style.display = 'block';
+    };
+    previewImg.onerror = function() {
+        previewDiv.style.display = 'none';
+    };
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+        previewImg.src = url;
+    } else {
+        previewImg.src = '/' + url;
+    }
+}
+
 // Filter subcategories by category
 function filterInvSubcategories(prefix) {
     var categoryId = document.getElementById('inv-' + prefix + '-category_id').value;
@@ -1753,6 +2449,11 @@ function openInvCatAddModal() {
 function closeInvCatAddModal() {
     document.getElementById('inv-cat-add-modal').style.display = 'none';
     document.getElementById('inv-cat-add-form').reset();
+}
+function promptCloseInvCatAddModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeInvCatAddModal();
+    }
 }
 function submitInvCatAdd(e) {
     e.preventDefault();
@@ -1782,6 +2483,11 @@ function openInvSetAddModal() {
 function closeInvSetAddModal() {
     document.getElementById('inv-set-add-modal').style.display = 'none';
     document.getElementById('inv-set-add-form').reset();
+}
+function promptCloseInvSetAddModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeInvSetAddModal();
+    }
 }
 function submitInvSetAdd(e) {
     e.preventDefault();
@@ -2081,11 +2787,173 @@ function submitRestart(e) {
         .catch(function() { showToast('Error restarting app.', 'error'); });
 }
 
-// Escape key closes all modals
+// PIN Recovery Token Management
+function showRecoveryToken(token) {
+    document.getElementById('recovery-token-value').textContent = token;
+    document.getElementById('recovery-token-display').style.display = 'block';
+    document.getElementById('recovery-status').style.display = 'none';
+}
+
+function generateRecoveryToken() {
+    if (!confirm('A recovery token will be generated and shown ONLY ONCE. Make sure you are ready to save it. Continue?')) return;
+    fetch('/settings/recovery/generate', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.token) {
+                showRecoveryToken(data.token);
+            } else if (data.error) {
+                showToast(data.error, 'error');
+            }
+        })
+        .catch(function() { showToast('Error generating recovery token.', 'error'); });
+}
+
+function regenerateRecoveryToken() {
+    if (!confirm('The current recovery token will be invalidated and a new one generated. The new token will be shown ONLY ONCE. Continue?')) return;
+    fetch('/settings/recovery/regenerate', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.token) {
+                showRecoveryToken(data.token);
+            } else if (data.error) {
+                showToast(data.error, 'error');
+            }
+        })
+        .catch(function() { showToast('Error regenerating recovery token.', 'error'); });
+}
+
+function disableRecoveryToken() {
+    if (!confirm('Disable the recovery token? Without it, lost PINs cannot be recovered.')) return;
+    fetch('/settings/recovery/disable', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success || !data.error) {
+                location.reload();
+            } else {
+                showToast(data.error || 'Error disabling recovery token.', 'error');
+            }
+        })
+        .catch(function() { showToast('Error disabling recovery token.', 'error'); });
+}
+
+// Reset Settings Modal
+function openResetSettingsModal() {
+    document.getElementById('reset-settings-modal').style.display = 'flex';
+}
+function closeResetSettingsModal() {
+    document.getElementById('reset-settings-modal').style.display = 'none';
+}
+function submitResetSettings() {
+    if (!confirm('Are you absolutely sure you want to reset all settings to their defaults?')) return;
+    fetch('/system/reset-settings', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                closeResetSettingsModal();
+                showToast('All settings have been reset to defaults. Reloading...', 'success');
+                setTimeout(function() { location.reload(); }, 1500);
+            } else {
+                showToast(data.message || 'Error resetting settings.', 'error');
+            }
+        })
+        .catch(function() { showToast('Error resetting settings.', 'error'); });
+}
+
+// Delete Database Modal
+function openDeleteDatabaseModal() {
+    document.getElementById('delete-database-modal').style.display = 'flex';
+    document.getElementById('delete-step-1').style.display = 'block';
+    document.getElementById('delete-step-2').style.display = 'none';
+    document.getElementById('delete-confirm-input').value = '';
+    document.getElementById('delete-confirm-btn').disabled = true;
+    document.getElementById('delete-confirm-btn').style.opacity = '0.5';
+    document.getElementById('delete-error').style.display = 'none';
+}
+function closeDeleteDatabaseModal() {
+    document.getElementById('delete-database-modal').style.display = 'none';
+}
+function goToDeleteStep2() {
+    document.getElementById('delete-step-1').style.display = 'none';
+    document.getElementById('delete-step-2').style.display = 'block';
+    document.getElementById('delete-confirm-input').focus();
+}
+function goToDeleteStep1() {
+    document.getElementById('delete-step-1').style.display = 'block';
+    document.getElementById('delete-step-2').style.display = 'none';
+}
+function checkDeleteConfirmation() {
+    var input = document.getElementById('delete-confirm-input').value.trim().toUpperCase();
+    var btn = document.getElementById('delete-confirm-btn');
+    var error = document.getElementById('delete-error');
+    if (input === 'DELETE') {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        error.style.display = 'none';
+    } else {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+    }
+}
+function submitDeleteDatabase() {
+    var input = document.getElementById('delete-confirm-input').value.trim();
+    if (input.toUpperCase() !== 'DELETE') {
+        var error = document.getElementById('delete-error');
+        error.textContent = 'Confirmation word incorrect. Please type DELETE exactly.';
+        error.style.display = 'block';
+        return;
+    }
+    var btn = document.getElementById('delete-confirm-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Deleting...';
+    var formData = new FormData();
+    formData.append('confirmation_word', input);
+    fetch('/system/delete-database', { method: 'POST', body: formData })
+        .then(function(r) {
+            // After DB deletion, the session is invalidated, so we may get a redirect to /setup
+            if (r.redirected || r.url.includes('/setup') || r.url.includes('/login')) {
+                closeDeleteDatabaseModal();
+                showToast('Database deleted. Redirecting to setup wizard...', 'info');
+                setTimeout(function() { window.location.href = '/setup'; }, 1000);
+                return;
+            }
+            return r.json();
+        })
+        .then(function(data) {
+            if (data && data.status === 'success') {
+                closeDeleteDatabaseModal();
+                showToast('Database deleted. Redirecting to setup wizard...', 'info');
+                setTimeout(function() { window.location.href = '/setup'; }, 2000);
+            } else if (data && data.message) {
+                btn.disabled = false;
+                btn.textContent = '🗑 Delete Everything';
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(function() {
+            // If fetch fails entirely (session expired), redirect to setup
+            closeDeleteDatabaseModal();
+            showToast('Database deleted. Redirecting to setup wizard...', 'info');
+            setTimeout(function() { window.location.href = '/setup'; }, 1000);
+        });
+}
+
+// Escape key closes all modals with confirmation for add/edit modals
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        var modals = document.querySelectorAll('.modal-overlay');
-        for (var i = 0; i < modals.length; i++) modals[i].style.display = 'none';
+        // Close add/edit modals with confirmation
+        if (document.getElementById('cat-add-modal').style.display === 'flex') promptCloseCatAddModal();
+        else if (document.getElementById('cat-edit-modal').style.display === 'flex') promptCloseCatEditModal();
+        else if (document.getElementById('cat-set-add-modal').style.display === 'flex') promptCloseCatSetAddModal();
+        else if (document.getElementById('cat-set-edit-modal').style.display === 'flex') promptCloseCatSetEditModal();
+        else if (document.getElementById('inv-add-modal').style.display === 'flex') promptCloseInvAddModal();
+        else if (document.getElementById('inv-edit-modal').style.display === 'flex') promptCloseInvEditModal();
+        else if (document.getElementById('inv-cat-add-modal').style.display === 'flex') promptCloseInvCatAddModal();
+        else if (document.getElementById('inv-set-add-modal').style.display === 'flex') promptCloseInvSetAddModal();
+        else {
+            // Close other modals without confirmation
+            var modals = document.querySelectorAll('.modal-overlay');
+            for (var i = 0; i < modals.length; i++) modals[i].style.display = 'none';
+        }
     }
 });
 
@@ -2110,6 +2978,16 @@ window.addEventListener('beforeunload', function(e) {
     if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ''; }
 });
 
+// Logo size live preview
+function updateLogoSize(size) {
+    document.getElementById('logo_size').value = size;
+    document.getElementById('logo-size-value').textContent = size;
+    var previewLogo = document.getElementById('preview-logo');
+    if (previewLogo) {
+        previewLogo.style.maxHeight = size + 'px';
+    }
+}
+
 // Restore last active section on page load
 (function() {
     var saved = localStorage.getItem('mgmtSection');
@@ -2117,5 +2995,391 @@ window.addEventListener('beforeunload', function(e) {
         switchSection(saved);
     }
 })();
+
+// ===== Image Scraper Functions =====
+
+var selectedProductId = null;
+var selectedProductName = null;
+var selectedImageData = null; // base64 or local path
+var selectedImageType = null; // 'url', 'upload', 'web'
+
+function searchProductsForImage() {
+    var query = document.getElementById('img-search-product').value.trim();
+    var resultsDiv = document.getElementById('img-product-results');
+    
+    if (query.length < 2) {
+        resultsDiv.innerHTML = '';
+        return;
+    }
+    
+    fetch('/inventory/search-products?q=' + encodeURIComponent(query))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.products && data.products.length > 0) {
+                resultsDiv.innerHTML = data.products.map(function(p) {
+                    var hasImage = p.image_url ? '<span style="color: #10b981;">📷 Has image</span>' : '<span style="color: #f59e0b;">No image</span>';
+                    return '<div class="img-product-item" onclick="selectProductForImage(' + p.id + ', \'' + escapeHtml(p.name) + '\')" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.35rem; cursor: pointer; background: var(--bg); transition: background 0.15s;" onmouseover="this.style.background=\'rgba(59,130,246,0.1)\'" onmouseout="this.style.background=\'var(--bg)\'">' +
+                        '<span style="font-size: 0.9rem; font-weight: 500;">' + escapeHtml(p.name) + '</span>' +
+                        '<span style="font-size: 0.8rem;">' + hasImage + '</span>' +
+                        '</div>';
+                }).join('');
+            } else {
+                resultsDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No products found.</p>';
+            }
+        })
+        .catch(function() {
+            resultsDiv.innerHTML = '<p style="color: #e74c3c; font-size: 0.85rem;">Error searching products.</p>';
+        });
+}
+
+function selectProductForImage(productId, productName) {
+    selectedProductId = productId;
+    selectedProductName = productName;
+    
+    // Highlight selected product
+    var items = document.querySelectorAll('.img-product-item');
+    for (var i = 0; i < items.length; i++) {
+        items[i].style.borderColor = 'var(--border)';
+        items[i].style.background = 'var(--bg)';
+    }
+    event.currentTarget.style.borderColor = 'var(--primary)';
+    event.currentTarget.style.background = 'var(--primary)';
+    event.currentTarget.style.color = 'white';
+    
+    // Enable attach button if image is ready
+    var attachBtn = document.getElementById('img-attach-btn');
+    if (selectedImageData) {
+        attachBtn.disabled = false;
+        attachBtn.textContent = '📎 Attach to: ' + productName;
+    }
+    
+    // Show status
+    document.getElementById('img-attach-status').innerHTML = '<span style="color: var(--primary);">Selected: ' + escapeHtml(productName) + '</span>';
+}
+
+function searchWebImages() {
+    var query = document.getElementById('img-web-search').value.trim();
+    var resultsDiv = document.getElementById('img-web-results');
+    
+    if (!query) {
+        showToast('Please enter a search term.', 'error');
+        return;
+    }
+    
+    resultsDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">Searching...</p>';
+    
+    var formData = new FormData();
+    formData.append('q', query);
+    
+    fetch('/inventory/search-images', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.images && data.images.length > 0) {
+                resultsDiv.innerHTML = data.images.map(function(img) {
+                    return '<img src="' + escapeHtml(img.thumbnail) + '" alt="Search result" style="width: 120px; height: 120px; object-fit: cover; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; transition: border-color 0.15s;" onclick="selectWebImage(\'' + escapeHtml(img.url) + '\', this)" onmouseover="this.style.borderColor=var(--primary)" onmouseout="this.style.borderColor=var(--border)">';
+                }).join('');
+            } else if (data.message) {
+                resultsDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">' + escapeHtml(data.message) + '</p>';
+            } else {
+                resultsDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No images found.</p>';
+            }
+        })
+        .catch(function() {
+            resultsDiv.innerHTML = '<p style="color: #e74c3c; font-size: 0.85rem;">Error searching images. Please check your internet connection and try again.</p>';
+        });
+}
+
+function selectWebImage(url, elem) {
+    // Highlight selected image
+    var images = document.querySelectorAll('#img-web-results img');
+    for (var i = 0; i < images.length; i++) {
+        images[i].style.borderColor = 'var(--border)';
+    }
+    elem.style.borderColor = 'var(--primary)';
+    
+    // Download the image
+    var formData = new FormData();
+    formData.append('image_url', url);
+    
+    fetch('/inventory/download-image', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                selectedImageData = data.local_path;
+                selectedImageType = 'url';
+                showImagePreview(selectedImageData);
+            } else {
+                showToast(data.message || 'Failed to download image.', 'error');
+            }
+        })
+        .catch(function() {
+            showToast('Error downloading image.', 'error');
+        });
+}
+
+function loadImageFromUrl() {
+    var url = document.getElementById('img-url-input').value.trim();
+    
+    if (!url) {
+        showToast('Please enter an image URL.', 'error');
+        return;
+    }
+    
+    var formData = new FormData();
+    formData.append('image_url', url);
+    
+    fetch('/inventory/download-image', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                selectedImageData = data.local_path;
+                selectedImageType = 'url';
+                showImagePreview(selectedImageData);
+            } else {
+                showToast(data.message || 'Failed to download image.', 'error');
+            }
+        })
+        .catch(function() {
+            showToast('Error downloading image.', 'error');
+        });
+}
+
+function previewUploadedImage() {
+    var fileInput = document.getElementById('img-upload-input');
+    var nameSpan = document.getElementById('img-upload-name');
+    
+    if (fileInput.files && fileInput.files[0]) {
+        nameSpan.textContent = fileInput.files[0].name;
+        
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            selectedImageData = e.target.result; // base64 data URL for preview
+            selectedImageType = 'upload';
+            showImagePreview(selectedImageData);
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+    }
+}
+
+function showImagePreview(src) {
+    var previewArea = document.getElementById('img-preview-area');
+    var previewImg = document.getElementById('img-preview');
+    var attachBtn = document.getElementById('img-attach-btn');
+    
+    previewImg.src = src;
+    previewArea.style.display = 'block';
+    
+    if (selectedProductId) {
+        attachBtn.disabled = false;
+        attachBtn.textContent = '📎 Attach to: ' + selectedProductName;
+    } else {
+        attachBtn.disabled = true;
+        attachBtn.textContent = '📎 Attach to Selected Product';
+    }
+    
+    // Clear status
+    document.getElementById('img-attach-status').innerHTML = '<span style="color: #10b981;">Image loaded successfully.</span>';
+}
+
+function attachImageToProduct() {
+    if (!selectedProductId) {
+        showToast('Please select a product first.', 'error');
+        return;
+    }
+    if (!selectedImageData) {
+        showToast('Please select an image first.', 'error');
+        return;
+    }
+    
+    var attachBtn = document.getElementById('img-attach-btn');
+    attachBtn.disabled = true;
+    attachBtn.textContent = '⏳ Attaching...';
+    
+    if (selectedImageType === 'upload') {
+        // Upload file from input
+        var fileInput = document.getElementById('img-upload-input');
+        if (!fileInput.files || !fileInput.files[0]) {
+            showToast('File not found.', 'error');
+            attachBtn.disabled = false;
+            attachBtn.textContent = '📎 Attach to Selected Product';
+            return;
+        }
+        
+        var formData = new FormData();
+        formData.append('image', fileInput.files[0]);
+        
+        fetch('/inventory/' + selectedProductId + '/upload-image', { method: 'POST', body: formData })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.status === 'success') {
+                    showToast('Image attached to ' + selectedProductName + '!', 'success');
+                    resetImageScraper();
+                } else {
+                    showToast(data.message || 'Failed to attach image.', 'error');
+                    attachBtn.disabled = false;
+                    attachBtn.textContent = '📎 Attach to Selected Product';
+                }
+            })
+            .catch(function() {
+                showToast('Error attaching image.', 'error');
+                attachBtn.disabled = false;
+                attachBtn.textContent = '📎 Attach to Selected Product';
+            });
+    } else {
+        // URL-based image (already downloaded)
+        var formData = new FormData();
+        formData.append('image_url', selectedImageData);
+        
+        fetch('/inventory/' + selectedProductId + '/scrape-image', { method: 'POST', body: formData })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.status === 'success') {
+                    showToast('Image attached to ' + selectedProductName + '!', 'success');
+                    resetImageScraper();
+                } else {
+                    showToast(data.message || 'Failed to attach image.', 'error');
+                    attachBtn.disabled = false;
+                    attachBtn.textContent = '📎 Attach to Selected Product';
+                }
+            })
+            .catch(function() {
+                showToast('Error attaching image.', 'error');
+                attachBtn.disabled = false;
+                attachBtn.textContent = '📎 Attach to Selected Product';
+            });
+    }
+}
+
+function resetImageScraper() {
+    selectedProductId = null;
+    selectedProductName = null;
+    selectedImageData = null;
+    selectedImageType = null;
+    
+    document.getElementById('img-search-product').value = '';
+    document.getElementById('img-product-results').innerHTML = '';
+    document.getElementById('img-web-search').value = '';
+    document.getElementById('img-web-results').innerHTML = '';
+    document.getElementById('img-url-input').value = '';
+    document.getElementById('img-upload-input').value = '';
+    document.getElementById('img-upload-name').textContent = '';
+    document.getElementById('img-preview-area').style.display = 'none';
+    document.getElementById('img-attach-status').innerHTML = '';
+    
+    var attachBtn = document.getElementById('img-attach-btn');
+    attachBtn.disabled = true;
+    attachBtn.textContent = '📎 Attach to Selected Product';
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ===== Backup Modal Functions =====
+
+function openBackupModal() {
+    document.getElementById('backup-modal').style.display = 'flex';
+}
+
+function closeBackupModal() {
+    document.getElementById('backup-modal').style.display = 'none';
+}
+
+// Run backup via AJAX
+function runBackup(e) {
+    e.preventDefault();
+    var staffName = document.getElementById('backup_staff_name').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        return;
+    }
+
+    var notes = document.getElementById('backup_notes').value.trim();
+
+    var formData = new FormData();
+    formData.append('staff_name', staffName);
+    formData.append('notes', notes);
+
+    fetch('/backups/run-json', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.status === 'success') {
+            showToast('Backup created: ' + data.message, 'success');
+            closeBackupModal();
+            setTimeout(function() {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showToast('Backup failed: ' + data.message, 'error');
+        }
+    })
+    .catch(function(err) {
+        showToast('Error running backup: ' + err.message, 'error');
+    });
+}
+
+// ===== Import Backup Modal Functions =====
+
+function openImportModal() {
+    document.getElementById('import-file').value = '';
+    document.getElementById('import_staff_name').value = '';
+    document.getElementById('import-file-name').textContent = 'No file selected';
+    document.getElementById('import-modal').style.display = 'flex';
+}
+
+function closeImportModal() {
+    document.getElementById('import-modal').style.display = 'none';
+}
+
+// Update file name display when file is selected
+document.getElementById('import-file').addEventListener('change', function(e) {
+    var fileName = e.target.files[0] ? e.target.files[0].name : 'No file selected';
+    document.getElementById('import-file-name').textContent = fileName;
+});
+
+// Import backup via AJAX
+function importBackup(e) {
+    e.preventDefault();
+    var staffName = document.getElementById('import_staff_name').value.trim();
+    if (!staffName) {
+        showToast('Staff name is required.', 'error');
+        return;
+    }
+    
+    var fileInput = document.getElementById('import-file');
+    if (!fileInput.files[0]) {
+        showToast('Please select a backup file.', 'error');
+        return;
+    }
+    
+    var formData = new FormData();
+    formData.append('backup', fileInput.files[0]);
+    formData.append('staff_name', staffName);
+    
+    fetch('/backups/import', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.status === 'success') {
+            showToast(data.message, 'success');
+            closeImportModal();
+            setTimeout(function() {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showToast('Import failed: ' + data.message, 'error');
+        }
+    })
+    .catch(function(err) {
+        showToast('Error importing backup: ' + err.message, 'error');
+    });
+}
 </script>
 {% endblock %}

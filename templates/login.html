@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: center; align-items: center; min-height: 70vh;">
+    <div class="card" style="max-width: 400px; width: 100%; text-align: center;">
+        {% if store_settings and store_settings.logo_path %}
+        <img src="/{{ store_settings.logo_path }}" alt="Logo" style="max-height: 80px; object-fit: contain; margin-bottom: 1rem;">
+        {% endif %}
+        <h2 style="margin-bottom: 0.5rem;">{{ store_settings.store_name if store_settings and store_settings.store_name else 'TCG Preorder Manager' }}</h2>
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Enter your 4-digit PIN to log in</p>
+        
+        {% if timeout %}
+        <div class="flash flash-warning" style="margin-bottom: 1rem; background: #fff3cd; color: #856404; border: 1px solid #ffc107; padding: 0.75rem 1rem; border-radius: 6px;">Your session has expired due to inactivity. Please log in again.</div>
+        {% endif %}
+        {% if error %}
+        <div class="flash flash-error" style="margin-bottom: 1rem;">{{ error }}</div>
+        {% endif %}
+        
+        <form method="post" style="display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+            <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                <input type="password" 
+                       name="pin" 
+                       id="pin"
+                       maxlength="4" 
+                       pattern="[0-9]{4}" 
+                       inputmode="numeric"
+                       placeholder="••••" 
+                       style="width: 200px; text-align: center; font-size: 2rem; letter-spacing: 0.5rem; padding: 0.75rem; border: 2px solid var(--border); border-radius: 8px;"
+                       autofocus
+                       required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 200px; height: 48px; font-size: 1.1rem;">Log In</button>
+        </form>
+        
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 1.5rem;">
+            <a href="/recovery" style="color: var(--primary); text-decoration: none;">Forgot your PIN? Use recovery token →</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+    // Auto-submit when 4 digits are entered
+    document.getElementById('pin').addEventListener('input', function() {
+        if (this.value.length === 4) {
+            this.closest('form').requestSubmit();
+        }
+    });
+</script>
+{% endblock %}

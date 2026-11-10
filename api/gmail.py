@@ -95,7 +95,10 @@ def gmail_callback(request: Request, code: str = None, error: str = None):
 
         log_change("settings", None, "Connected Gmail for email sending", None)
 
-        return RedirectResponse(url="/settings?success=1&gmail_connected=1", status_code=303)
+        # Check if we came from the setup wizard
+        return_url = request.session.get("gmail_callback_return", "/settings?success=1&gmail_connected=1")
+        request.session.pop("gmail_callback_return", None)
+        return RedirectResponse(url=return_url, status_code=303)
     except Exception as e:
         return RedirectResponse(
             url=f"/settings?error=Failed to connect Gmail: {str(e)}",

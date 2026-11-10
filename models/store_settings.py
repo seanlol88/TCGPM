@@ -36,6 +36,14 @@ class StoreSettings(Base):
     backup_last_message = Column(String, nullable=True, default=None)
     # System settings
     app_port = Column(Integer, nullable=True, default=8000)  # Port the app runs on
+    logo_size = Column(Integer, nullable=True, default=40)  # Header logo size in pixels (max-height), max 80
+    # Session timeout settings (universal for all staff)
+    timeout_enabled = Column(Boolean, nullable=True, default=False)  # Whether session timeout is enabled
+    timeout_seconds = Column(Integer, nullable=True, default=1800)  # Timeout in seconds (default 30 minutes)
+    # First-run setup wizard
+    setup_complete = Column(Boolean, nullable=True, default=False)  # Whether the first-run setup wizard has been completed
+    # PIN recovery token (SHA-256 hash stored, raw token shown once)
+    recovery_token_hash = Column(String(64), nullable=True, default=None)  # SHA-256 hash of the recovery token
 
     @classmethod
     def get(cls, db):

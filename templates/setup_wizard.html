@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TCG Preorder Manager — Setup Wizard</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --primary-hover: #2980b9;
+            --success: #27ae60;
+            --success-hover: #219a52;
+            --danger: #e74c3c;
+            --bg: #f5f5f5;
+            --bg-card: #ffffff;
+            --text: #333333;
+            --text-muted: #7f8c8d;
+            --border: #ddd;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .wizard-container {
+            max-width: 600px;
+            width: 100%;
+        }
+        .wizard-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .wizard-header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+        .wizard-header p {
+            color: var(--text-muted);
+        }
+        /* Progress bar */
+        .progress-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+        .progress-bar::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--border);
+            z-index: 0;
+            transform: translateY(-50%);
+        }
+        .progress-bar .progress-fill {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            height: 2px;
+            background: var(--primary);
+            z-index: 1;
+            transform: translateY(-50%);
+            transition: width 0.3s ease;
+        }
+        .step-indicator {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--border);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            position: relative;
+            z-index: 2;
+            transition: all 0.3s ease;
+        }
+        .step-indicator.active {
+            background: var(--primary);
+            color: white;
+        }
+        .step-indicator.completed {
+            background: var(--success);
+            color: white;
+        }
+        .step-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+        .step-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-align: center;
+            width: 40px;
+        }
+        /* Card */
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+        }
+        .card .description {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+        .card .required-badge {
+            display: inline-block;
+            background: var(--danger);
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+        .card .optional-badge {
+            display: inline-block;
+            background: var(--text-muted);
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+        /* Form */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            font-size: 0.9rem;
+            margin-bottom: 0.35rem;
+        }
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 0.65rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        .form-group .hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+        .pin-input {
+            width: 200px !important;
+            text-align: center;
+            font-size: 2rem !important;
+            letter-spacing: 0.5rem;
+            padding: 0.75rem !important;
+        }
+        .pin-row {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+            margin-bottom: 1rem;
+        }
+        /* Buttons */
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        .btn-success:hover {
+            background: var(--success-hover);
+        }
+        .btn-secondary {
+            background: var(--text-muted);
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #6c757d;
+        }
+        .btn-link {
+            background: none;
+            color: var(--primary);
+            padding: 0.5rem 0;
+        }
+        .btn-link:hover {
+            text-decoration: underline;
+        }
+        .btn-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1.5rem;
+        }
+        /* Error */
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        /* Staff rows */
+        .staff-row {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .staff-row input[name^="staff_name"] {
+            flex: 2;
+        }
+        .staff-row input[name^="staff_pin"] {
+            flex: 1;
+            max-width: 100px;
+        }
+        .remove-row {
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        /* Summary */
+        .summary-list {
+            list-style: none;
+            padding: 0;
+        }
+        .summary-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+        }
+        .summary-list li:last-child {
+            border-bottom: none;
+        }
+        .summary-label {
+            color: var(--text-muted);
+        }
+        .summary-value {
+            font-weight: 500;
+        }
+        /* Step content - only show current step */
+        .step-content {
+            display: none;
+        }
+        .step-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <h1>🎴 TCG Preorder Manager</h1>
+            <p>Welcome! Let's set up your store in a few quick steps.</p>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            <div class="step-indicator {% if step|int >= 1 %}active{% if step|int > 1 %} completed{% endif %}{% endif %}" data-step="1">1</div>
+            <div class="step-indicator {% if step|int >= 2 %}active{% if step|int > 2 %} completed{% endif %}{% endif %}" data-step="2">2</div>
+            <div class="step-indicator {% if step|int >= 3 %}active{% if step|int > 3 %} completed{% endif %}{% endif %}" data-step="3">3</div>
+            <div class="step-indicator {% if step|int >= 4 %}active{% if step|int > 4 %} completed{% endif %}{% endif %}" data-step="4">4</div>
+            <div class="step-indicator {% if step|int >= 5 %}active{% if step|int > 5 %} completed{% endif %}{% endif %}" data-step="5">5</div>
+            <div class="step-indicator {% if step|int >= 6 %}active{% if step|int > 6 %} completed{% endif %}{% endif %}" data-step="6">6</div>
+            <div class="step-indicator {% if step|int >= 7 %}active{% if step|int > 7 %} completed{% endif %}{% endif %}" data-step="7">7</div>
+        </div>
+        <div class="step-labels">
+            <div class="step-label">PIN</div>
+            <div class="step-label">Staff</div>
+            <div class="step-label">Port</div>
+            <div class="step-label">Store</div>
+            <div class="step-label">Email</div>
+            <div class="step-label">Recovery</div>
+            <div class="step-label">Done</div>
+        </div>
+
+        {% if error %}
+        <div class="error-message">{{ error }}</div>
+        {% endif %}
+
+        <div class="card">
+
+            <!-- Step 1: Admin PIN (Required) -->
+            <div class="step-content {% if step == '1' %}active{% endif %}" data-step="1">
+                <h2>Create Admin PIN <span class="required-badge">Required</span></h2>
+                <p class="description">Set a 4-digit PIN for the admin account. This cannot be skipped.</p>
+
+                <form method="post" action="/setup/admin-pin" id="adminPinForm">
+                    <div class="pin-row">
+                        <div class="form-group" style="flex:1;">
+                            <label for="pin">Admin PIN</label>
+                            <input type="password" name="pin" id="pin" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="••••" class="pin-input" required>
+                        </div>
+                        <div class="form-group" style="flex:1;">
+                            <label for="pin_confirm">Confirm PIN</label>
+                            <input type="password" name="pin_confirm" id="pin_confirm" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="••••" class="pin-input" required>
+                        </div>
+                    </div>
+                    <div class="btn-row">
+                        <div></div>
+                        <button type="submit" class="btn btn-primary">Next →</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Step 2: Add Staff (Optional) -->
+            <div class="step-content {% if step == '2' %}active{% endif %}" data-step="2">
+                <h2>Add Staff Members <span class="optional-badge">Optional</span></h2>
+                <p class="description">Add your team members and give them 4-digit PINs. You can always add more later in Settings.</p>
+
+                <form method="post" action="/setup/staff" id="staffForm">
+                    <div id="staffRows">
+                        <div class="staff-row">
+                            <input type="text" name="staff_name[]" placeholder="Name" style="padding:0.65rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;flex:2;">
+                            <input type="text" name="staff_pin[]" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="PIN" style="padding:0.65rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;flex:1;max-width:100px;">
+                            <button type="button" class="remove-row" onclick="this.parentElement.remove()" title="Remove">×</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-link" onclick="addStaffRow()">+ Add another staff member</button>
+
+                    <input type="hidden" name="staff_names" id="staff_names_hidden">
+                    <input type="hidden" name="staff_pins" id="staff_pins_hidden">
+
+                    <div class="btn-row">
+                        <a href="/setup?step=3" class="btn btn-secondary">Skip</a>
+                        <button type="submit" class="btn btn-primary">Next →</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Step 3: App Port (Optional) -->
+            <div class="step-content {% if step == '3' %}active{% endif %}" data-step="3">
+                <h2>App Port <span class="optional-badge">Optional</span></h2>
+                <p class="description">Choose which port the app runs on. The default is 8000. You can change this later in Settings.</p>
+
+                <form method="post" action="/setup/port">
+                    <div class="form-group">
+                        <label for="app_port">Port Number</label>
+                        <input type="number" name="app_port" id="app_port" value="8000" min="1024" max="65535">
+                        <div class="hint">The app will be available at http://localhost:<strong id="portDisplay">8000</strong></div>
+                    </div>
+                    <div class="btn-row">
+                        <a href="/setup?step=2" class="btn btn-secondary">← Back</a>
+                        <button type="submit" class="btn btn-primary">Next →</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Step 4: Store Info (Optional) -->
+            <div class="step-content {% if step == '4' %}active{% endif %}" data-step="4">
+                <h2>Store Information <span class="optional-badge">Optional</span></h2>
+                <p class="description">Tell us about your store. This info appears on order confirmations and receipts.</p>
+
+                <form method="post" action="/setup/store-info">
+                    <div class="form-group">
+                        <label for="store_name">Store Name</label>
+                        <input type="text" name="store_name" id="store_name" placeholder="e.g. My TCG Shop">
+                    </div>
+                    <div class="form-group">
+                        <label for="address">Address</label>
+                        <input type="text" name="address" id="address" placeholder="e.g. 123 Main St, Sydney NSW">
+                    </div>
+                    <div class="form-group">
+                        <label for="contact_number">Contact Number</label>
+                        <input type="text" name="contact_number" id="contact_number" placeholder="e.g. 0412 345 678">
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" name="email" id="email" placeholder="e.g. shop@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="website">Website</label>
+                        <input type="url" name="website" id="website" placeholder="e.g. https://myshop.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="abn">ABN (Australian Business Number)</label>
+                        <input type="text" name="abn" id="abn" placeholder="e.g. 12 345 678 901">
+                    </div>
+                    <div class="btn-row">
+                        <a href="/setup?step=3" class="btn btn-secondary">← Back</a>
+                        <button type="submit" class="btn btn-primary">Next →</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Step 5: Gmail Connection (Optional) -->
+            <div class="step-content {% if step == '5' %}active{% endif %}" data-step="5">
+                <h2>Connect Gmail <span class="optional-badge">Optional</span></h2>
+                <p class="description">Connect Gmail to send order confirmations and notifications to your customers.</p>
+
+                {% if gmail_connected %}
+                <div class="success-message">✅ Gmail is already connected!</div>
+                <div class="btn-row">
+                    <a href="/setup?step=4" class="btn btn-secondary">← Back</a>
+                    <a href="/setup?step=6" class="btn btn-primary">Next →</a>
+                </div>
+                {% else %}
+                <div style="background: #fff3cd; color: #856404; border: 1px solid #ffc107; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem;">
+                    <strong>Note:</strong> You need a <code>gmail_credentials.json</code> file from Google Cloud Console to connect Gmail. If you don't have it yet, skip this step and set it up later in Settings.
+                </div>
+                <div class="btn-row">
+                    <a href="/setup?step=4" class="btn btn-secondary">← Back</a>
+                    <div style="display:flex; gap:0.5rem;">
+                        <a href="/setup/skip-gmail" class="btn btn-secondary">Skip</a>
+                        <a href="/setup/gmail-connect" class="btn btn-primary">Connect Gmail →</a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Step 6: Recovery Token -->
+            <div class="step-content {% if step == '6' %}active{% endif %}" data-step="6">
+                <h2>PIN Recovery Token <span class="required-badge">Important</span></h2>
+                <p class="description">Generate a recovery token that can be used to reset all staff PINs if access is lost. This token is shown <strong>only once</strong>.</p>
+
+                <div style="background: #fff3cd; color: #856404; border: 1px solid #ffc107; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem;">
+                    <strong>⚠️ Without this token, lost PINs cannot be recovered.</strong> We strongly recommend generating and saving it now.
+                </div>
+
+                {% if recovery_token %}
+                <div style="background: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                    <strong>✅ Recovery token already generated</strong>
+                    <p style="margin-top: 0.5rem;">A recovery token was previously generated. If you have saved it, you can proceed. If not, you can regenerate a new token below or set it up later in Settings → System.</p>
+                </div>
+                {% else %}
+                <div id="recovery-token-area" style="display: none; margin-bottom: 1rem;">
+                    <div style="background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: 1rem; border-radius: 6px;">
+                        <strong>⚠️ SAVE THIS TOKEN NOW — it will not be shown again!</strong>
+                        <div id="recovery-token-value" style="margin: 0.75rem 0; padding: 0.75rem; background: #fff; border: 1px solid #dee2e6; border-radius: 4px; font-family: monospace; font-size: 1.1rem; letter-spacing: 0.15rem; word-break: break-all; user-select: all;"></div>
+                        <p style="margin-top: 0.5rem;">Print this page or copy the token to a secure location.</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="btn-row">
+                    <a href="/setup?step=5" class="btn btn-secondary">← Back</a>
+                    <div style="display:flex; gap:0.5rem;">
+                        {% if not recovery_token %}
+                        <a href="/setup?step=7" class="btn btn-secondary">Skip (Not Recommended)</a>
+                        <button type="button" class="btn btn-primary" onclick="generateSetupRecoveryToken()">Generate Token</button>
+                        {% else %}
+                        <a href="/setup?step=7" class="btn btn-secondary">Skip</a>
+                        <button type="button" class="btn btn-primary" onclick="regenerateSetupRecoveryToken()">Regenerate Token</button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 7: Complete -->
+            <div class="step-content {% if step == '7' %}active{% endif %}" data-step="7">
+                <h2>🎉 All Set!</h2>
+                <p class="description">Your TCG Preorder Manager is ready to go. Click below to finish setup and log in.</p>
+
+                <ul class="summary-list">
+                    <li>
+                        <span class="summary-label">Admin PIN</span>
+                        <span class="summary-value">✅ Created</span>
+                    </li>
+                    <li>
+                        <span class="summary-label">Gmail</span>
+                        <span class="summary-value">{% if gmail_connected %}✅ Connected{% else %}⏭ Skipped — can be set up later{% endif %}</span>
+                    </li>
+                    <li>
+                        <span class="summary-label">Recovery Token</span>
+                        <span class="summary-value">{% if recovery_token %}✅ Generated{% else %}⏭ Skipped — can be set up later in Settings{% endif %}</span>
+                    </li>
+                    <li>
+                        <span class="summary-label">Desktop Shortcut</span>
+                        <span class="summary-value">Will be created after you click Finish</span>
+                    </li>
+                </ul>
+
+                <div class="btn-row">
+                    <a href="/setup?step=6" class="btn btn-secondary">← Back</a>
+                    <a href="/setup/complete" class="btn btn-success">Finish Setup →</a>
+                </div>
+            </div>
+
+        </div>
+
+        <p style="text-align:center; color:var(--text-muted); font-size:0.8rem; margin-top:1.5rem;">
+            You can change all settings later in Settings → System.
+        </p>
+    </div>
+
+    <script>
+        // Update progress bar
+        function updateProgress(currentStep) {
+            const totalSteps = 7;
+            const fillPercent = ((currentStep - 1) / (totalSteps - 1)) * 100;
+            document.getElementById('progressFill').style.width = fillPercent + '%';
+
+            document.querySelectorAll('.step-indicator').forEach(function(el) {
+                const step = parseInt(el.dataset.step);
+                el.classList.remove('active', 'completed');
+                if (step < currentStep) {
+                    el.classList.add('completed');
+                } else if (step === currentStep) {
+                    el.classList.add('active');
+                }
+            });
+        }
+
+        // Show current step, hide others
+        function showStep(step) {
+            document.querySelectorAll('.step-content').forEach(function(el) {
+                el.classList.remove('active');
+                if (parseInt(el.dataset.step) === parseInt(step)) {
+                    el.classList.add('active');
+                }
+            });
+            updateProgress(parseInt(step));
+        }
+
+        // Port display update
+        const portInput = document.getElementById('app_port');
+        if (portInput) {
+            portInput.addEventListener('input', function() {
+                document.getElementById('portDisplay').textContent = this.value;
+            });
+        }
+
+        // Staff row management
+        function addStaffRow() {
+            const container = document.getElementById('staffRows');
+            const row = document.createElement('div');
+            row.className = 'staff-row';
+            row.innerHTML = `
+                <input type="text" name="staff_name[]" placeholder="Name" style="padding:0.65rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;flex:2;">
+                <input type="text" name="staff_pin[]" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="PIN" style="padding:0.65rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;flex:1;max-width:100px;">
+                <button type="button" class="remove-row" onclick="this.parentElement.remove()" title="Remove">×</button>
+            `;
+            container.appendChild(row);
+        }
+
+        // Collect staff form data before submit
+        document.getElementById('staffForm').addEventListener('submit', function(e) {
+            const rows = document.querySelectorAll('#staffRows .staff-row');
+            const names = [];
+            const pins = [];
+            rows.forEach(function(row) {
+                const nameInput = row.querySelector('input[name="staff_name[]"]');
+                const pinInput = row.querySelector('input[name="staff_pin[]"]');
+                if (nameInput.value.trim() && pinInput.value.trim()) {
+                    names.push(nameInput.value.trim());
+                    pins.push(pinInput.value.trim());
+                }
+            });
+            document.getElementById('staff_names_hidden').value = names.join('\n');
+            document.getElementById('staff_pins_hidden').value = pins.join('\n');
+        });
+
+        // Generate recovery token during setup
+        function generateSetupRecoveryToken() {
+            fetch('/setup/recovery/generate', { method: 'POST' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.token) {
+                        document.getElementById('recovery-token-value').textContent = data.token;
+                        document.getElementById('recovery-token-area').style.display = 'block';
+                        // Hide the generate button and show the "I've Saved It" button
+                        var btnRow = document.querySelector('[data-step="6"] .btn-row');
+                        btnRow.innerHTML = `
+                            <a href="/setup?step=5" class="btn btn-secondary">← Back</a>
+                            <div style="display:flex; gap:0.5rem;">
+                                <a href="/setup?step=7" class="btn btn-primary">I've Saved It →</a>
+                            </div>
+                        `;
+                    } else if (data.error) {
+                        alert(data.error);
+                    }
+                })
+                .catch(function() { alert('Error generating recovery token.'); });
+        }
+
+        // Regenerate recovery token during setup (when one already exists)
+        function regenerateSetupRecoveryToken() {
+            if (!confirm('This will invalidate the existing token. Are you sure?')) return;
+            fetch('/setup/recovery/regenerate', { method: 'POST' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.token) {
+                        // Show the token in the JS-generated area
+                        var tokenArea = document.getElementById('recovery-token-area');
+                        if (tokenArea) {
+                            document.getElementById('recovery-token-value').textContent = data.token;
+                            tokenArea.style.display = 'block';
+                        }
+                        // Replace the info box with the warning box
+                        var infoBox = document.querySelector('[data-step="6"] > div[style*="#d1e7dd"]');
+                        if (infoBox) {
+                            infoBox.outerHTML = `
+                                <div style="background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                                    <strong>⚠️ SAVE THIS TOKEN NOW — it will not be shown again!</strong>
+                                    <div style="margin: 0.75rem 0; padding: 0.75rem; background: #fff; border: 1px solid #dee2e6; border-radius: 4px; font-family: monospace; font-size: 1.1rem; letter-spacing: 0.15rem; word-break: break-all; user-select: all;">${data.token}</div>
+                                    <p style="margin-top: 0.5rem;">Print this page or copy the token to a secure location.</p>
+                                </div>
+                            `;
+                        }
+                        var btnRow = document.querySelector('[data-step="6"] .btn-row');
+                        btnRow.innerHTML = `
+                            <a href="/setup?step=5" class="btn btn-secondary">← Back</a>
+                            <div style="display:flex; gap:0.5rem;">
+                                <a href="/setup?step=7" class="btn btn-primary">I've Saved It →</a>
+                            </div>
+                        `;
+                    } else if (data.error) {
+                        alert(data.error);
+                    }
+                })
+                .catch(function() { alert('Error regenerating recovery token.'); });
+        }
+
+        // Initialize on page load
+        showStep('{{ step }}');
+    </script>
+</body>
+</html>

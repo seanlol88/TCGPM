@@ -224,9 +224,11 @@
             border-radius: 8px;
             padding: 1.5rem;
             box-shadow: var(--card-shadow);
-            max-width: 500px;
+            max-width: 700px;
             width: 90%;
             position: relative;
+            max-height: 85vh;
+            overflow-y: auto;
         }
         .modal-box h2, .modal-box h3 {
             margin-top: 0;
@@ -277,26 +279,214 @@
         .autocomplete-dropdown-item.active {
             background: var(--border);
         }
+        /* Mobile hamburger button */
+        .nav-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--nav-text);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.25rem;
+            line-height: 1;
+        }
+        /* ===== Mobile Responsive Styles ===== */
+        @media (max-width: 768px) {
+            /* Navigation — hamburger menu */
+            .nav-toggle {
+                display: block;
+            }
+            nav {
+                flex-wrap: wrap;
+                padding: 0.75rem 1rem;
+            }
+            nav ul {
+                display: none;
+                flex-direction: column;
+                width: 100%;
+                gap: 0;
+                margin-top: 0.75rem;
+                padding-top: 0.75rem;
+                border-top: 1px solid rgba(255,255,255,0.15);
+            }
+            nav ul.open {
+                display: flex;
+            }
+            nav ul li {
+                width: 100%;
+            }
+            nav ul li a,
+            nav ul li > span {
+                display: block;
+                padding: 0.75rem 0.5rem;
+                font-size: 1rem;
+                border-radius: 4px;
+            }
+            nav ul li a:hover {
+                background: var(--nav-hover);
+                color: white;
+            }
+            /* Dropdowns on mobile — static, not hover */
+            .dropdown-content {
+                position: static;
+                box-shadow: none;
+                background: var(--dropdown-bg);
+                border-radius: 4px;
+                margin-top: -0.25rem;
+            }
+            .dropdown:hover .dropdown-content {
+                display: none;
+            }
+            .dropdown.open .dropdown-content {
+                display: block;
+            }
+            /* Theme toggle on mobile */
+            .theme-toggle {
+                padding: 0.75rem 0.5rem;
+            }
+            /* Container */
+            .container {
+                padding: 0 0.75rem;
+                margin: 1rem auto;
+            }
+            /* Cards */
+            .card {
+                padding: 1rem;
+            }
+            /* Tables — make scrollable and readable */
+            table {
+                font-size: 0.78rem;
+            }
+            th, td {
+                padding: 0.5rem 0.35rem;
+                white-space: normal;
+                word-break: break-word;
+            }
+            /* Buttons — larger touch targets (WCAG 44x44px) */
+            button, .btn {
+                height: 44px;
+                min-width: 44px;
+                padding: 0.6rem 1rem;
+                font-size: 1rem;
+            }
+            .btn-sm {
+                height: 38px;
+                padding: 0.4rem 0.8rem;
+                font-size: 0.9rem;
+            }
+            .icon-btn {
+                width: 44px;
+                height: 44px;
+                min-width: 44px;
+            }
+            /* Inputs */
+            input, select {
+                padding: 0.6rem;
+                font-size: 1rem;
+                min-height: 44px;
+            }
+            /* Modal */
+            .modal-box {
+                width: 95%;
+                max-width: 95vw;
+                padding: 1rem;
+                max-height: 90vh;
+            }
+            .modal-box h2, .modal-box h3 {
+                font-size: 1.1rem;
+            }
+            /* Toast */
+            .toast-container {
+                bottom: 0.5rem;
+                right: 0.5rem;
+                left: 0.5rem;
+            }
+            .toast {
+                max-width: 100%;
+                font-size: 0.9rem;
+                padding: 0.75rem 1rem;
+            }
+            /* Dashboard grid */
+            .dashboard-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            /* Customer badge */
+            .customer-badge {
+                padding: 0.35rem 0.6rem;
+                font-size: 0.85rem;
+            }
+            /* Autocomplete */
+            .autocomplete-dropdown {
+                max-height: 200px;
+            }
+        }
+        @media (max-width: 480px) {
+            /* Very small screens */
+            nav h1 {
+                font-size: 1rem;
+            }
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            .stat-card .number {
+                font-size: 1.5rem;
+            }
+            /* Inline forms stack vertically */
+            .inline-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .inline-form input {
+                width: 100%;
+            }
+        }
     </style>
     <style>
         {% block extra_style %}{% endblock %}
     </style>
+    {% block head_extra %}{% endblock %}
 </head>
 <body>
     <nav>
         <div style="display: flex; align-items: center; gap: 0.75rem;">
             {% if store_settings and store_settings.logo_path %}
-            <img src="/{{ store_settings.logo_path }}" alt="Logo" style="max-height: 32px; object-fit: contain;">
+            {% if store_settings.website %}
+            <a href="{{ store_settings.website }}" target="_blank" rel="noopener noreferrer" style="display: inline-block; text-decoration: none;">
+                <img src="/{{ store_settings.logo_path }}" alt="Logo" style="max-height: {{ store_settings.logo_size or 40 }}px; object-fit: contain;">
+            </a>
+            {% else %}
+            <img src="/{{ store_settings.logo_path }}" alt="Logo" style="max-height: {{ store_settings.logo_size or 40 }}px; object-fit: contain;">
+            {% endif %}
             {% endif %}
             <h1>{{ store_settings.store_name if store_settings and store_settings.store_name else 'TCG Preorder Manager' }}</h1>
         </div>
-        <ul>
+        <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation" onclick="document.getElementById('nav-menu').classList.toggle('open');">☰</button>
+        <ul id="nav-menu">
             <li><a href="/">Dashboard</a></li>
+            {% if current_permissions.create_orders or current_permissions.view_orders %}
             <li><a href="/orders/new">New Order</a></li>
+            {% endif %}
+            {% if current_permissions.view_orders %}
             <li><a href="/orders">Orders</a></li>
+            {% endif %}
+            {% if current_permissions.view_customers %}
             <li><a href="/customers">Customers</a></li>
+            {% endif %}
+            {% if current_permissions.view_inventory %}
             <li><a href="/upcoming-releases">Release Dates</a></li>
+            {% endif %}
+            {% if current_permissions.view_distributors %}
+            <li><a href="/distributors">Distributors</a></li>
+            {% endif %}
+            {% if current_permissions.manage_settings or current_permissions.manage_staff or current_permissions.manage_backups or current_permissions.view_audit_log or current_permissions.manage_system %}
             <li><a href="/settings">⚙️ Settings</a></li>
+            {% endif %}
+            {% if current_staff_name %}
+            <li style="display: flex; align-items: center; gap: 0.75rem;">
+                <span style="font-size: 0.85rem; opacity: 0.8;">👤 {{ current_staff_name }}</span>
+                <a href="/logout" style="font-size: 0.85rem; color: #e74c3c; text-decoration: none;">Logout</a>
+            </li>
+            {% endif %}
             <li class="theme-toggle">
                 <span>🌙</span>
                 <label class="switch">

@@ -13,6 +13,47 @@
 @media (max-width: 900px) {
     .profit-summary { grid-template-columns: repeat(2, 1fr); }
 }
+@media (max-width: 768px) {
+    /* Action bar — stack buttons */
+    h1 + div[style*="display: flex"] {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    /* Chart rows — stack vertically */
+    .chart-row {
+        grid-template-columns: 1fr !important;
+        gap: 0.5rem !important;
+    }
+    .chart-label {
+        white-space: normal !important;
+    }
+    .chart-values {
+        text-align: left !important;
+        min-width: auto !important;
+    }
+    /* FY ranking rows — simplify */
+    .fy-rank-row {
+        grid-template-columns: 30px 1fr 80px !important;
+        gap: 0.5rem !important;
+    }
+    .fy-rank-row > :nth-child(4),
+    .fy-rank-row > :nth-child(5) {
+        display: none;
+    }
+    /* Card header flex — stack */
+    .card > div[style*="display: flex"][style*="justify-content: space-between"] {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.5rem !important;
+    }
+    /* Pickup progress bar narrower */
+    .pickup-progress-bar {
+        width: 100px !important;
+    }
+}
+@media (max-width: 480px) {
+    .profit-summary { grid-template-columns: 1fr; }
+}
 .profit-summary-card {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -728,7 +769,7 @@ function toggleStockColumns() {
             <input type="text" id="pickup-staff-name" placeholder="Your name" required>
         </div>
         <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" onclick="closePickupModal()">Cancel</button>
+            <button type="button" class="btn btn-secondary" onclick="promptClosePickupModal()">Cancel</button>
             <button type="button" class="btn btn-success" onclick="confirmPickup()">Update Pickup</button>
         </div>
     </div>
@@ -825,7 +866,7 @@ function toggleStockColumns() {
             <input type="text" id="payment-staff-name" placeholder="Your name" required>
         </div>
         <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" onclick="closePaymentModal()">Cancel</button>
+            <button type="button" class="btn btn-secondary" onclick="promptClosePaymentModal()">Cancel</button>
             <button type="button" class="btn btn-primary" onclick="showPaymentConfirmModal()">Continue</button>
         </div>
     </div>
@@ -1057,6 +1098,12 @@ function closePickupModal() {
     currentPickupOrderId = null;
 }
 
+function promptClosePickupModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closePickupModal();
+    }
+}
+
 function confirmPickup() {
     var staffName = document.getElementById('pickup-staff-name').value.trim();
     if (!staffName) {
@@ -1148,7 +1195,12 @@ function openPaymentModal(orderId, balance, customerName) {
 function closePaymentModal() {
     document.getElementById('payment-modal').style.display = 'none';
     currentPaymentOrderId = null;
-    currentPaymentBalance = 0;
+}
+
+function promptClosePaymentModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closePaymentModal();
+    }
 }
 
 function closePaymentConfirmModal() {

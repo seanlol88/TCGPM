@@ -2,6 +2,12 @@
 
 {% block title %}Inventory - {{ store_settings.store_name if store_settings and store_settings.store_name else 'TCG Preorder Manager' }}{% endblock %}
 
+{% block head_extra %}
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+{% endblock %}
+
 {% block extra_style %}
 .modal-box .form-group {
     margin-bottom: 1rem;
@@ -21,6 +27,51 @@
     background: var(--input-bg);
     color: var(--text);
     box-sizing: border-box;
+}
+.product-image-thumb {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.product-image-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.image-preview {
+    max-width: 150px;
+    max-height: 100px;
+    object-fit: contain;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-top: 0.5rem;
+}
+/* Image search results grid */
+.img-search-results {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 8px !important;
+    margin-top: 8px !important;
+    margin-bottom: 8px !important;
+}
+.img-search-thumb {
+    width: 100% !important;
+    height: 80px !important;
+    object-fit: cover !important;
+    border-radius: 4px !important;
+    border: 2px solid transparent !important;
+    cursor: pointer !important;
+    transition: border-color 0.15s !important;
+}
+.img-search-thumb:hover {
+    border-color: #3498db !important;
+}
+.img-search-thumb.selected {
+    border-color: #27ae60 !important;
+    box-shadow: 0 0 0 2px #27ae60 !important;
 }
 {% endblock %}
 
@@ -53,6 +104,7 @@
             <tr>
                 <th style="width: 40px;"><input type="checkbox" id="select-all-products" onchange="toggleSelectAllProducts()" title="Select All"></th>
                 <th>ID</th>
+                <th>Image</th>
                 <th>Name</th>
                 <th>Category</th>
                 <th>Set Name</th>
@@ -69,6 +121,13 @@
             <tr>
                 <td><input type="checkbox" class="product-checkbox" value="{{ product.id }}" onchange="updateSelectedCount()"></td>
                 <td>{{ product.id }}</td>
+                <td>
+                    {% if product.image_url %}
+                    <img src="/{{ product.thumb_url }}" alt="{{ product.name }}" class="product-image-thumb" title="Click to zoom: {{ product.name }}" onclick="openImageZoom('{{ product.image_url | replace('"', '\\"') }}', '{{ product.name | replace("'", "\\'") }}')">
+                    {% else %}
+                    <span style="color: var(--text-muted);">—</span>
+                    {% endif %}
+                </td>
                 <td>{{ product.name }}</td>
                 <td>{{ product.category.name if product.category else '-' }}</td>
                 <td>{{ product.subcategory.name if product.subcategory else '-' }}</td>
@@ -78,7 +137,7 @@
                 <td>$ {{ "%.2f" % product.price }}</td>
                 <td>{{ product.max_per_order if product.max_per_order else '∞' }}</td>
                 <td>
-                    <button type="button" class="btn btn-primary btn-sm" onclick='openEditModal({{ product.id }}, "{{ product.name | replace('"', '\\"') }}", {{ product.quantity }}, {{ product.price }}, {{ product.cost_price or 0.0 }}, {{ product.max_per_order | tojson }}, "{{ product.release_date.strftime('%Y-%m-%d') if product.release_date else '' }}", {{ product.category_id or '' }}, {{ product.subcategory_id or '' }})'>Edit</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick='openEditModal({{ product.id }}, "{{ product.name | replace('"', '\\"') }}", {{ product.quantity }}, {{ product.price }}, {{ product.cost_price or 0.0 }}, {{ product.max_per_order | tojson }}, "{{ product.release_date.strftime('%Y-%m-%d') if product.release_date else '' }}", {{ product.category_id or '' }}, {{ product.subcategory_id or '' }}, "{{ product.image_url or '' }}")'>Edit</button>
                     <button type="button" class="icon-btn icon-btn-danger" onclick="confirmDelete({{ product.id }}, '{{ product.name | replace("'", "\\'") }}')" title="Delete">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                     </button>
@@ -102,9 +161,51 @@
         <button class="modal-close" onclick="closeAddModal()">&times;</button>
         <h2>Add Product</h2>
         <form id="add-product-form" onsubmit="submitAddProduct(event)">
+
+            <!-- Image Preview Box at Top -->
+            <div id="add-image-preview-box" style="text-align:center;padding:8px;background:rgba(0,0,0,0.03);border:1px dashed var(--border);border-radius:8px;margin-bottom:12px;min-height:60px;max-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
+                <span id="add-preview-placeholder" style="color:#999;font-size:0.85rem;font-style:italic;">No image selected</span>
+                <img id="add-image-preview" class="image-preview" style="display:none;max-width:150px;max-height:100px;width:auto;height:auto;object-fit:contain;border-radius:4px;">
+            </div>
+
             <div class="form-group">
                 <label for="add-name">Product Name *</label>
                 <input type="text" id="add-name" name="name" required placeholder="e.g. MTG Booster Pack">
+                <button type="button" class="btn btn-sm btn-secondary" style="margin-top:0.5rem;width:100%;" onclick="toggleImagePanel('add')">📷 Choose Image</button>
+            </div>
+
+            <!-- Hidden Image Options Panel -->
+            <div id="add-image-panel" style="display:none;background:#e8f4fd;border:2px solid #3498db;border-radius:8px;padding:12px;margin-bottom:12px;">
+                <div style="font-size:1rem;font-weight:700;color:#2c3e50;margin-bottom:10px;">📷 Product Image</div>
+
+                <!-- Option 1: Image Search (Openverse) -->
+                <div style="margin-bottom:8px;">
+                    <div style="font-size:0.85rem;font-weight:600;color:#555;margin-bottom:4px;">1️⃣ Search Images (Openverse)</div>
+                    <div style="display:flex;gap:6px;">
+                        <input type="text" id="add-image-search" placeholder="Search for an image..." style="flex:1;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:0.9rem;">
+                        <button type="button" class="btn btn-primary" onclick="searchGoogleImages('add')">Search</button>
+                    </div>
+                    <div id="add-image-search-results" class="img-search-results" style="display:none;"></div>
+                </div>
+
+                <!-- Option 2: Paste URL -->
+                <div style="margin-bottom:8px;">
+                    <div style="font-size:0.85rem;font-weight:600;color:#555;margin-bottom:4px;">2️⃣ Paste Image URL</div>
+                    <div style="display:flex;gap:6px;">
+                        <input type="url" id="add-image_url" name="image_url" placeholder="https://example.com/image.jpg" style="flex:1;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:0.9rem;">
+                        <button type="button" class="btn btn-primary" onclick="scrapeImage('add')">Load</button>
+                    </div>
+                </div>
+
+                <!-- Option 3: Upload from Computer -->
+                <div style="margin-bottom:8px;">
+                    <div style="font-size:0.85rem;font-weight:600;color:#555;margin-bottom:4px;">3️⃣ Upload from Computer</div>
+                    <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#f0f0f0;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:0.9rem;">
+                        📁 Choose File
+                        <input type="file" id="add-image" accept="image/*" style="display:none;" onchange="previewImage('add')">
+                    </label>
+                    <span id="add-image-name" style="font-size:0.85rem;color:#888;margin-left:8px;"></span>
+                </div>
             </div>
             <div class="form-group">
                 <label for="add-quantity">Quantity *</label>
@@ -126,6 +227,7 @@
                 <label for="add-release_date">Release Date</label>
                 <input type="date" id="add-release_date" name="release_date">
             </div>
+
             <div class="form-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                     <label for="add-category_id">Category</label>
@@ -149,8 +251,7 @@
                 </select>
             </div>
             <div class="form-group">
-                <label for="add-staff_name">Staff Name *</label>
-                <input type="text" id="add-staff_name" name="staff_name" required placeholder="Your name">
+                <input type="hidden" name="staff_name" value="{{ current_staff_name or "" }}">
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
                 <button type="button" class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
@@ -167,9 +268,62 @@
         <h2>Edit Product</h2>
         <form id="edit-product-form" onsubmit="submitEditProduct(event)">
             <input type="hidden" id="edit-id" name="id">
+
+            <!-- Image Preview Box at Top -->
+            <div id="edit-image-preview-box" style="text-align:center;padding:8px;background:rgba(0,0,0,0.03);border:1px dashed var(--border);border-radius:8px;margin-bottom:12px;min-height:60px;max-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
+                <span id="edit-preview-placeholder" style="color:#999;font-size:0.85rem;font-style:italic;">No image selected</span>
+                <img id="edit-image-preview" class="image-preview" style="display:none;max-width:150px;max-height:100px;width:auto;height:auto;object-fit:contain;border-radius:4px;">
+            </div>
+
             <div class="form-group">
                 <label for="edit-name">Product Name *</label>
                 <input type="text" id="edit-name" name="name" required>
+                <button type="button" class="btn btn-sm btn-secondary" style="margin-top:0.5rem;width:100%;" onclick="toggleImagePanel('edit')">📷 Choose Image</button>
+            </div>
+
+            <!-- Hidden Image Options Panel -->
+            <div id="edit-image-panel" style="display:none;background:#e8f4fd;border:2px solid #3498db;border-radius:8px;padding:12px;margin-bottom:12px;">
+                <div style="font-size:1rem;font-weight:700;color:#2c3e50;margin-bottom:10px;">📷 Product Image</div>
+
+                <!-- Current Image -->
+                <div id="edit-image-current" style="margin-bottom:8px;"></div>
+
+                <!-- Option 1: Image Search (Openverse) -->
+                <div style="margin-bottom:8px;">
+                    <div style="font-size:0.85rem;font-weight:600;color:#555;margin-bottom:4px;">1️⃣ Search Images (Openverse)</div>
+                    <div style="display:flex;gap:6px;">
+                        <input type="text" id="edit-image-search" placeholder="Search for an image..." style="flex:1;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:0.9rem;">
+                        <button type="button" class="btn btn-primary" onclick="searchGoogleImages('edit')">Search</button>
+                    </div>
+                    <div id="edit-image-search-results" class="img-search-results" style="display:none;"></div>
+                </div>
+
+                <!-- Option 2: Paste URL -->
+                <div style="margin-bottom:8px;">
+                    <div style="font-size:0.85rem;font-weight:600;color:#555;margin-bottom:4px;">2️⃣ Paste Image URL</div>
+                    <div style="display:flex;gap:6px;">
+                        <input type="url" id="edit-image_url" name="image_url" placeholder="https://example.com/image.jpg" style="flex:1;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:0.9rem;">
+                        <button type="button" class="btn btn-primary" onclick="scrapeImage('edit')">Load</button>
+                    </div>
+                </div>
+
+                <!-- Option 3: Upload from Computer -->
+                <div style="margin-bottom:8px;">
+                    <div style="font-size:0.85rem;font-weight:600;color:#555;margin-bottom:4px;">3️⃣ Upload from Computer</div>
+                    <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#f0f0f0;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:0.9rem;">
+                        📁 Choose File
+                        <input type="file" id="edit-image" accept="image/*" style="display:none;" onchange="previewImage('edit')">
+                    </label>
+                    <span id="edit-image-name" style="font-size:0.85rem;color:#888;margin-left:8px;"></span>
+                </div>
+
+                <!-- Remove checkbox -->
+                <div style="margin-bottom:8px;">
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:0.9rem;color:#e74c3c;">
+                        <input type="checkbox" id="edit-remove_image" name="remove_image" value="yes">
+                        Remove current image
+                    </label>
+                </div>
             </div>
             <div class="form-group">
                 <label for="edit-quantity">Quantity *</label>
@@ -191,6 +345,7 @@
                 <label for="edit-release_date">Release Date</label>
                 <input type="date" id="edit-release_date" name="release_date">
             </div>
+
             <div class="form-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                     <label for="edit-category_id">Category</label>
@@ -412,6 +567,14 @@ function openAddModal() {
 function closeAddModal() {
     document.getElementById('add-modal').style.display = 'none';
     document.getElementById('add-product-form').reset();
+    document.getElementById('add-image-preview').style.display = 'none';
+    document.getElementById('add-image-name').textContent = '';
+    var placeholder = document.getElementById('add-preview-placeholder');
+    if (placeholder) placeholder.style.display = '';
+    var searchResults = document.getElementById('add-image-search-results');
+    if (searchResults) { searchResults.innerHTML = ''; searchResults.style.display = 'none'; }
+    var panel = document.getElementById('add-image-panel');
+    if (panel) panel.style.display = 'none';
 }
 
 function promptCloseAddModal() {
@@ -444,7 +607,7 @@ function submitAddProduct(e) {
 }
 
 // Edit Modal
-function openEditModal(id, name, quantity, price, costPrice, maxPerOrder, releaseDate, categoryId, subcategoryId) {
+function openEditModal(id, name, quantity, price, costPrice, maxPerOrder, releaseDate, categoryId, subcategoryId, imageUrl) {
     document.getElementById('edit-id').value = id;
     document.getElementById('edit-name').value = name;
     document.getElementById('edit-quantity').value = quantity;
@@ -453,6 +616,29 @@ function openEditModal(id, name, quantity, price, costPrice, maxPerOrder, releas
     document.getElementById('edit-max_per_order').value = maxPerOrder !== null && maxPerOrder !== undefined ? maxPerOrder : '';
     document.getElementById('edit-release_date').value = releaseDate;
     document.getElementById('edit-category_id').value = categoryId || '';
+    // Handle image
+    var imageCurrent = document.getElementById('edit-image-current');
+    var imagePreview = document.getElementById('edit-image-preview');
+    var placeholder = document.getElementById('edit-preview-placeholder');
+    var removeCheckbox = document.getElementById('edit-remove_image');
+    imagePreview.style.display = 'none';
+    if (placeholder) placeholder.style.display = '';
+    document.getElementById('edit-image-name').textContent = '';
+    document.getElementById('edit-image_url').value = '';
+    removeCheckbox.checked = false;
+    if (imageUrl) {
+        imageCurrent.innerHTML = '<img src="/' + imageUrl + '" class="image-preview" style="display:block;max-width:150px;max-height:150px;border-radius:4px;border:1px solid #ccc;" title="Current image">';
+        imagePreview.src = '/' + imageUrl;
+        imagePreview.style.display = 'block';
+        if (placeholder) placeholder.style.display = 'none';
+    } else {
+        imageCurrent.innerHTML = '';
+        imagePreview.style.display = 'none';
+        if (placeholder) placeholder.style.display = '';
+    }
+    // Reset search results
+    var searchResults = document.getElementById('edit-image-search-results');
+    if (searchResults) { searchResults.innerHTML = ''; searchResults.style.display = 'none'; }
     document.getElementById('edit-modal').style.display = 'flex';
     // Filter subcategories after setting category
     setTimeout(function() {
@@ -465,6 +651,15 @@ function openEditModal(id, name, quantity, price, costPrice, maxPerOrder, releas
 
 function closeEditModal() {
     document.getElementById('edit-modal').style.display = 'none';
+    document.getElementById('edit-image-preview').style.display = 'none';
+    document.getElementById('edit-image-name').textContent = '';
+    document.getElementById('edit-image-current').innerHTML = '';
+    var placeholder = document.getElementById('edit-preview-placeholder');
+    if (placeholder) placeholder.style.display = '';
+    var searchResults = document.getElementById('edit-image-search-results');
+    if (searchResults) { searchResults.innerHTML = ''; searchResults.style.display = 'none'; }
+    var panel = document.getElementById('edit-image-panel');
+    if (panel) panel.style.display = 'none';
 }
 
 function promptCloseEditModal() {
@@ -561,6 +756,12 @@ function closeAddCategoryModal() {
     document.getElementById('add-category-form').reset();
 }
 
+function promptCloseAddCategoryModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeAddCategoryModal();
+    }
+}
+
 function submitAddCategory(e) {
     e.preventDefault();
     var target = document.getElementById('add-category-target').value;
@@ -613,6 +814,12 @@ function closeAddSubcategoryModal() {
     document.getElementById('add-subcategory-form').reset();
 }
 
+function promptCloseAddSubcategoryModal() {
+    if (confirm('Are you sure you want to discard your changes?')) {
+        closeAddSubcategoryModal();
+    }
+}
+
 function submitAddSubcategory(e) {
     e.preventDefault();
     var target = document.getElementById('add-subcategory-target').value;
@@ -650,11 +857,17 @@ function submitAddSubcategory(e) {
 // Close modals on Escape key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        closeAddModal();
-        closeEditModal();
+        // Close image zoom lightbox first
+        var zoomModal = document.getElementById('image-zoom-modal');
+        if (zoomModal && zoomModal.style.display !== 'none') {
+            closeImageZoom();
+            return;
+        }
+        promptCloseAddModal();
+        promptCloseEditModal();
         closeDeleteModal();
-        closeAddCategoryModal();
-        closeAddSubcategoryModal();
+        promptCloseAddCategoryModal();
+        promptCloseAddSubcategoryModal();
         closeBulkCategoryModal();
         closeBulkSubcategoryModal();
         closeBulkDeleteModal();
@@ -919,5 +1132,174 @@ function submitBulkDelete(e) {
         })
         .catch(function() { showToast('Error deleting products.', 'error'); });
 }
+
+// Image panel toggle
+function toggleImagePanel(mode) {
+    var panel = document.getElementById(mode + '-image-panel');
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+    } else {
+        panel.style.display = 'none';
+    }
+}
+
+// Image helper functions
+function previewImage(mode) {
+    var fileInput = document.getElementById(mode + '-image');
+    var preview = document.getElementById(mode + '-image-preview');
+    var placeholder = document.getElementById(mode + '-preview-placeholder');
+    var nameSpan = document.getElementById(mode + '-image-name');
+    if (fileInput.files && fileInput.files[0]) {
+        nameSpan.textContent = fileInput.files[0].name;
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+            if (placeholder) placeholder.style.display = 'none';
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+    }
+}
+
+function scrapeImage(mode) {
+    var urlInput = document.getElementById(mode + '-image_url');
+    var url = urlInput.value.trim();
+    if (!url) {
+        showToast('Please enter an image URL.', 'error');
+        return;
+    }
+    var preview = document.getElementById(mode + '-image-preview');
+    var placeholder = document.getElementById(mode + '-preview-placeholder');
+    // Download the image to local storage first, then preview
+    var formData = new FormData();
+    formData.append('image_url', url);
+    fetch('/inventory/download-image', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                urlInput.value = data.image_url;
+                // Use thumbnail URL for preview if available
+                var previewUrl = data.thumb_url ? '/' + data.thumb_url : '/' + data.image_url;
+                preview.src = previewUrl;
+                preview.style.display = 'block';
+                if (placeholder) placeholder.style.display = 'none';
+                showToast('Image loaded successfully.', 'success');
+            } else {
+                showToast(data.message || 'Failed to load image.', 'error');
+            }
+        })
+        .catch(function() {
+            // Fallback: try direct preview
+            preview.src = url;
+            preview.style.display = 'block';
+            if (placeholder) placeholder.style.display = 'none';
+            preview.onerror = function() {
+                showToast('Failed to load image from URL.', 'error');
+                preview.style.display = 'none';
+                if (placeholder) placeholder.style.display = '';
+            };
+        });
+}
+
+function searchGoogleImages(mode) {
+    var searchInput = document.getElementById(mode + '-image-search');
+    var query = searchInput.value.trim();
+    if (!query) {
+        showToast('Please enter a search term.', 'error');
+        return;
+    }
+    var resultsDiv = document.getElementById(mode + '-image-search-results');
+    resultsDiv.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:12px;color:#888;">Searching...</div>';
+    resultsDiv.style.display = 'grid';
+
+    var formData = new FormData();
+    formData.append('q', query);
+    fetch('/inventory/search-images', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success' && data.images && data.images.length > 0) {
+                resultsDiv.innerHTML = '';
+                data.images.forEach(function(img, index) {
+                    var imgEl = document.createElement('img');
+                    imgEl.className = 'img-search-thumb';
+                    imgEl.src = img.thumbnail || img.url;
+                    imgEl.title = img.title || 'Image ' + (index + 1);
+                    imgEl.alt = img.title || 'Search result';
+                    imgEl.onclick = function() {
+                        // Select this image
+                        var allThumbs = resultsDiv.querySelectorAll('.img-search-thumb');
+                        allThumbs.forEach(function(t) { t.classList.remove('selected'); });
+                        imgEl.classList.add('selected');
+                        // Download and set as the image_url
+                        var urlInput = document.getElementById(mode + '-image_url');
+                        var preview = document.getElementById(mode + '-image-preview');
+                        var placeholder = document.getElementById(mode + '-preview-placeholder');
+                        var dlData = new FormData();
+                        dlData.append('image_url', img.url);
+                        fetch('/inventory/download-image', { method: 'POST', body: dlData })
+                            .then(function(r) { return r.json(); })
+                            .then(function(dlResult) {
+                                if (dlResult.status === 'success') {
+                                    urlInput.value = dlResult.image_url;
+                                    // Use thumbnail URL for preview if available
+                                    var previewUrl = dlResult.thumb_url ? '/' + dlResult.thumb_url : '/' + dlResult.image_url;
+                                    preview.src = previewUrl;
+                                    preview.style.display = 'block';
+                                    if (placeholder) placeholder.style.display = 'none';
+                                    showToast('Image selected!', 'success');
+                                } else {
+                                    showToast('Failed to download image.', 'error');
+                                }
+                            })
+                            .catch(function() {
+                                showToast('Failed to download image.', 'error');
+                            });
+                    };
+                    resultsDiv.appendChild(imgEl);
+                });
+                showToast(data.images.length + ' images found. Click one to select.', 'success');
+            } else {
+                var msg = (data.message || 'No images found.').replace(/</g, '&lt;');
+                resultsDiv.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:12px;color:#e74c3c;">' + msg + '</div>';
+            }
+        })
+        .catch(function() {
+            resultsDiv.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:12px;color:#e74c3c;">Search failed. Please try again.</div>';
+        });
+}
+
+function getCurrentProductId() {
+    return document.getElementById('edit-id').value;
+}
+
+// Image Zoom Lightbox
+function openImageZoom(imageUrl, productName) {
+    var modal = document.getElementById('image-zoom-modal');
+    var img = document.getElementById('image-zoom-img');
+    var title = document.getElementById('image-zoom-title');
+    if (modal && img) {
+        img.src = '/' + imageUrl;
+        if (title) title.textContent = productName || '';
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeImageZoom() {
+    var modal = document.getElementById('image-zoom-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
 </script>
 {% endblock %}
+
+
+<!-- Image Zoom Lightbox Modal -->
+<div id="image-zoom-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:10000;align-items:center;justify-content:center;flex-direction:column;" onclick="if(event.target===this)closeImageZoom()">
+    <button onclick="closeImageZoom()" style="position:absolute;top:20px;right:30px;background:none;border:none;color:#fff;font-size:2rem;cursor:pointer;z-index:10001;" title="Close">&times;</button>
+    <div id="image-zoom-title" style="color:#fff;font-size:1.1rem;margin-bottom:12px;text-align:center;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+    <img id="image-zoom-img" style="max-width:90vw;max-height:75vh;object-fit:contain;border-radius:8px;box-shadow:0 4px 30px rgba(0,0,0,0.5);">
+    <div style="color:rgba(255,255,255,0.5);font-size:0.85rem;margin-top:12px;">Click outside or press Escape to close</div>
+</div>

@@ -1,9 +1,11 @@
 from datetime import date as date_type, timedelta, datetime
 from fastapi import FastAPI, Request
+from fastapi.responses import Response
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from jinja2 import FileSystemLoader
 from pathlib import Path
 from sqlalchemy import func, case, distinct
 from sqlalchemy.orm import joinedload
@@ -21,6 +23,7 @@ from models.subcategory import Subcategory
 from models.payment import Payment
 from models.order_log import OrderLog
 from models.store_settings import StoreSettings
+from models.distributor import Distributor, ProductDistributor
 from api import inventory as inventory_api
 from api import customers as customers_api
 from api import orders as orders_api
@@ -32,11 +35,90 @@ from api import settings as settings_api
 from api import backups as backups_api
 from api import gmail as gmail_api
 from api import system as system_api
+from api import distributors as distributors_api
+from api import auth as auth_api
+from api import setup as setup_api
+from api import recovery as recovery_api
 
 app = FastAPI(title=config.APP_TITLE)
 
-# Session middleware for Google Drive OAuth2 flow
-app.add_middleware(SessionMiddleware, secret_key=config.SESSION_SECRET, max_age=3600)
+# Session middleware for Google Drive OAuth2 flow and staff login
+# NOTE: add_middleware is LIFO - last added wraps outermost
+# LoginRedirectMiddleware must be added FIRST so it runs AFTER SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import RedirectResponse as StarletteRedirect
+
+LOGIN_WHITELIST = {"/login", "/logout", "/auth/check", "/static", "/openapi.json", "/docs", "/docs/oauth2-redirect",
+                   "/setup", "/setup/complete", "/setup/gmail-connect", "/setup/skip-gmail",
+                   "/recovery", "/recovery/reset", "/recovery/complete"}
+SETUP_PREFIXES = ["/setup", "/gmail/callback", "/recovery"]
+
+
+def _check_session_timeout(request: Request):
+    """Check if the session has expired due to inactivity timeout. If so, clear the session."""
+    from api.auth import is_session_expired, update_last_activity
+    if is_session_expired(request):
+        request.session.clear()
+        return True
+    # Update last activity on each successful request
+    update_last_activity(request)
+    return False
+
+
+def _is_first_run():
+    """Check if this is the first run (setup not complete)."""
+    db = SessionLocal()
+    try:
+        settings = StoreSettings.get(db)
+        return not settings.setup_complete
+    except Exception:
+        return False
+    finally:
+        db.close()
+
+
+def _is_setup_path(path: str) -> bool:
+    """Check if the path is a setup-related route."""
+    if path in LOGIN_WHITELIST:
+        return True
+    for prefix in SETUP_PREFIXES:
+        if path.startswith(prefix):
+            return True
+    return False
+
+
+class LoginRedirectMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        path = request.url.path
+        # Allow login, logout, auth check, static files, and setup routes without auth
+        if path in LOGIN_WHITELIST or path.startswith("/static/") or _is_setup_path(path):
+            return await call_next(request)
+        # Check if user is logged in (session is available after SessionMiddleware)
+        staff_id = request.session.get("staff_id")
+        if not staff_id:
+            # If first run, redirect to setup wizard instead of login
+            if _is_first_run():
+                return StarletteRedirect(url="/setup", status_code=302)
+            return StarletteRedirect(url="/login", status_code=302)
+        # Check session timeout
+        if _check_session_timeout(request):
+            return StarletteRedirect(url="/login?timeout=1", status_code=302)
+        return await call_next(request)
+
+app.add_middleware(LoginRedirectMiddleware)
+app.add_middleware(SessionMiddleware, secret_key=config.SESSION_SECRET, max_age=86400)
+
+# Cache control middleware - prevent browser caching of all responses
+# Added last so it is outermost (LIFO), but does not access session
+class CacheControlMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+
+app.add_middleware(CacheControlMiddleware)
 
 # Ensure database directory exists
 Path(config.DATABASE_URL.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
@@ -44,8 +126,11 @@ Path(config.DATABASE_URL.replace("sqlite:///", "")).parent.mkdir(parents=True, e
 # Initialize database tables
 init_db()
 
-# Templates
+# Templates - disable cache to always load latest version
+template_loader = FileSystemLoader(str(Path(__file__).parent / "templates"))
+template_loader.cache = False  # type: ignore
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+templates.env.loader = template_loader
 
 # Make templates available to API routes
 inventory_api.templates = templates
@@ -58,8 +143,12 @@ audit_api.templates = templates
 settings_api.templates = templates
 backups_api.templates = templates
 gmail_api.templates = templates
+auth_api.templates = templates
+setup_api.templates = templates
 
-# Include routers
+# Include routers (setup first so its routes take priority)
+app.include_router(setup_api.router)
+app.include_router(auth_api.router)
 app.include_router(inventory_api.router)
 app.include_router(customers_api.router)
 app.include_router(orders_api.router)
@@ -71,7 +160,11 @@ app.include_router(settings_api.router)
 app.include_router(backups_api.router)
 app.include_router(gmail_api.router)
 app.include_router(system_api.router)
+app.include_router(distributors_api.router)
+app.include_router(recovery_api.router)
 system_api.templates = templates
+distributors_api.templates = templates
+recovery_api.templates = templates
 
 # Static files for uploaded logos
 static_dir = Path(__file__).parent / "static"
@@ -79,7 +172,7 @@ static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
-# Inject store settings into all templates via Jinja2 globals
+# Inject store settings and current staff into all templates via Jinja2 globals
 def _get_store_settings():
     db = SessionLocal()
     try:
@@ -87,11 +180,30 @@ def _get_store_settings():
     finally:
         db.close()
 
-# Use a simple approach: override TemplateResponse to inject settings
+def _get_current_staff_name(request):
+    """Get the current staff name from the session."""
+    from api.auth import get_current_staff
+    staff = get_current_staff(request)
+    if staff:
+        return staff.name
+    # Fallback to session value if DB lookup fails
+    return getattr(request, 'session', {}).get('staff_name', None)
+
+# Use a simple approach: override TemplateResponse to inject settings and staff
 original_template_response = templates.TemplateResponse
 
 def patched_template_response(name, context, status_code=200, headers=None, media_type=None, background=None):
     context["store_settings"] = _get_store_settings()
+    # Inject current staff info and permissions into all templates
+    request = context.get("request")
+    if request:
+        staff_name = _get_current_staff_name(request)
+        context["current_staff_name"] = staff_name
+        from api.auth import get_staff_permissions
+        context["current_permissions"] = get_staff_permissions(request)
+    else:
+        context["current_staff_name"] = None
+        context["current_permissions"] = {}
     return original_template_response(name, context, status_code=status_code, headers=headers, media_type=media_type, background=background)
 
 templates.TemplateResponse = patched_template_response
@@ -135,6 +247,9 @@ def dashboard(request: Request):
                 .all()
             )
             for order in reserved_orders:
+                # Skip fully picked up orders - their stock is no longer reserved
+                if order.picked_up:
+                    continue
                 for item in order.items:
                     if item.product and item.product.id in upcoming_product_ids:
                         unpicked = (item.quantity or 0) - (item.picked_up_quantity or 0)
@@ -223,6 +338,9 @@ def dashboard(request: Request):
         unpicked_items_count = 0
         for order in all_orders:
             if order.deleted:
+                continue
+            # Skip fully picked up orders - no unpicked items remain
+            if order.picked_up:
                 continue
             for item in order.items:
                 if item.product:
@@ -487,8 +605,8 @@ if __name__ == "__main__":
     if sys.stderr is None:
         sys.stderr = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
     
-    # Read port from store_settings or .app_port file or default to 8000
-    port = 8000
+    # Read port from store_settings or .app_port file or default to 8001
+    port = 8001
     env_file = Path(__file__).parent / ".app_port"
     if env_file.exists():
         try:
